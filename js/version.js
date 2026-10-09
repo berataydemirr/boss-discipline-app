@@ -3,4 +3,4 @@
  * Kodda değişiklik yapıp yayınladığında bu sayıyı artır: önbellek yenilenir,
  * telefondaki uygulama "Yeni sürüm hazır" bildirimi gösterir.
  */
-self.DISIPLIN_VERSION = '1.0.0';
+self.DISIPLIN_VERSION = '2.0.0';

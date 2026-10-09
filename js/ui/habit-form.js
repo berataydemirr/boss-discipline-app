@@ -113,6 +113,38 @@ export function openHabitForm(existing = null, defaults = {}) {
         }),
       );
 
+      /* —— tür: kazanılacak / bırakılacak —— */
+      // Geçmişi olan alışkanlığın türü değişemez (store da reddeder); o durumda seçici gösterilmez.
+      const canChangeKind = !isEdit || store.datesFor(existing.id).size === 0;
+      const daysField = h('div', { class: 'field' });
+      const kindButtons = [
+        ['build', 'Kazanılacak'],
+        ['quit', 'Bırakılacak'],
+      ].map(([v, label]) =>
+        h(
+          'button',
+          {
+            type: 'button',
+            'aria-pressed': String(draft.kind === v),
+            onclick: () => {
+              draft.kind = v;
+              kindButtons.forEach((b, i) => b.setAttribute('aria-pressed', String(['build', 'quit'][i] === v)));
+              syncKind();
+            },
+          },
+          label,
+        ),
+      );
+      const kindHint = h('span', { class: 'field-hint' });
+      function syncKind() {
+        daysField.hidden = draft.kind === 'quit';
+        kindHint.textContent =
+          draft.kind === 'quit'
+            ? 'Her gün kendiliğinden temiz sayılır; yalnızca kaydığın günleri işaretlersin.'
+            : 'Planladığın günlerde yaptıkça işaretlersin.';
+        nameInput.placeholder = draft.kind === 'quit' ? 'Örn. Gece 12’den sonra telefon' : 'Örn. 20 sayfa kitap';
+      }
+
       /* —— başlangıç —— */
       const startInput = h('input', {
         class: 'input',
@@ -172,18 +204,20 @@ export function openHabitForm(existing = null, defaults = {}) {
       }
 
       syncDays();
+      syncKind();
 
       return h(
         'form',
         { class: 'form', onsubmit: submit, novalidate: true },
+        canChangeKind &&
+          h('div', { class: 'field' }, h('div', { class: 'segmented', role: 'group', 'aria-label': 'Tür' }, kindButtons), kindHint),
         h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Ad'), nameInput),
-        h(
-          'div',
-          { class: 'field' },
+        (daysField.append(
           h('span', { class: 'field-label' }, 'Günler'),
           h('div', { class: 'day-pills' }, dayButtons),
           h('div', { class: 'chip-row' }, presetButtons),
         ),
+        daysField),
         h('div', { class: 'field' }, h('span', { class: 'field-label' }, 'Renk'), h('div', { class: 'swatches' }, swatches)),
         h(
           'label',

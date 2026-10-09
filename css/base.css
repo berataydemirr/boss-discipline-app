@@ -93,6 +93,10 @@ button:disabled {
   background: var(--accent-soft);
 }
 
+[hidden] {
+  display: none !important;
+}
+
 .icon {
   flex: none;
   display: block;

@@ -20,6 +20,7 @@
   ],
   "shortcuts": [
     { "name": "Bugün", "url": "./#/today" },
+    { "name": "Analiz", "url": "./#/stats" },
     { "name": "Günlük", "url": "./#/journal" }
   ]
 }

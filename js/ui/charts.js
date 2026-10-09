@@ -1,0 +1,271 @@
+/**
+ * Elle yazılmış, bağımlılıksız küçük grafikler.
+ *
+ * Kurallar (dataviz rehberi):
+ * - Büyüklük = tek ton (vurgu rengi), açıktan koyuya; gökkuşağı yok.
+ * - İnce işaretler: sütunlar ≤ 24px, üstte 4px yuvarlak, tabanda düz; çizgi 2px.
+ * - Izgara/eksen silik ve tek piksel; metin her zaman metin renginde, veri renginde değil.
+ * - Her işaretin üzerine gelince/dokununca değer gösteren bir ipucu (tooltip) vardır.
+ */
+import { h } from './dom.js';
+import { addDays, startOfWeek, formatShort, formatLong, MONTHS_SHORT, WEEKDAYS_MIN } from '../core/dates.js';
+
+/* ───────────────────────── ipucu ───────────────────────── */
+
+/**
+ * Kapsayıcıya bağlı tek bir ipucu. Fareyle üzerine gelince ve dokununca çalışır.
+ * Hedef öğelerde data-tip="metin" bulunmalı.
+ */
+function withTooltip(container) {
+  const tip = h('div', { class: 'chart-tip', role: 'status', 'aria-live': 'polite' });
+  container.append(tip);
+  let active = null;
+
+  function show(target) {
+    if (active) active.classList.remove('is-active');
+    active = target;
+    target.classList.add('is-active');
+    tip.textContent = target.dataset.tip;
+    const c = container.getBoundingClientRect();
+    const t = target.getBoundingClientRect();
+    tip.classList.add('show');
+    const tw = tip.offsetWidth;
+    let x = t.left - c.left + t.width / 2 - tw / 2;
+    x = Math.max(0, Math.min(x, c.width - tw));
+    tip.style.transform = `translate(${Math.round(x)}px, ${Math.round(t.top - c.top - tip.offsetHeight - 8)}px)`;
+  }
+
+  function hide() {
+    tip.classList.remove('show');
+    active?.classList.remove('is-active');
+    active = null;
+  }
+
+  const find = (e) => e.target.closest?.('[data-tip]');
+  container.addEventListener('pointerover', (e) => {
+    if (e.pointerType !== 'mouse') return;
+    const t = find(e);
+    if (t && container.contains(t)) show(t);
+  });
+  container.addEventListener('pointerleave', (e) => {
+    if (e.pointerType === 'mouse') hide();
+  });
+  // Dokunmatikte: işarete dokun → göster; boş yere dokun → gizle.
+  // (Aç/kapa yapılmaz: farede üzerine gelince zaten açık olduğundan tıklama onu kapatırdı.)
+  container.addEventListener('click', (e) => {
+    const t = find(e);
+    if (t && container.contains(t)) show(t);
+    else hide();
+  });
+  return { hide };
+}
+
+/* ───────────────────────── ısı haritası ───────────────────────── */
+
+/** Oranı 0–4 arası yoğunluk seviyesine çevirir. null → plan yok. */
+export function heatLevel(ratio) {
+  if (ratio == null) return -1;
+  if (ratio <= 0) return 0;
+  if (ratio < 0.5) return 1;
+  if (ratio < 0.75) return 2;
+  if (ratio < 1) return 3;
+  return 4;
+}
+
+/**
+ * GitHub tarzı yıllık takvim. Haftalar sütun, günler satır (Pzt üstte).
+ * @param {{key:string, done:number, total:number, ratio:number|null}[]} series kronolojik
+ * @param {{color?:string, label?:(d)=>string}} opts color: tek alışkanlık için ton
+ */
+export function heatmap(series, { color, label } = {}) {
+  if (!series.length) return h('p', { class: 'muted small' }, 'Veri yok.');
+  const first = startOfWeek(series[0].key);
+  const byKey = new Map(series.map((d) => [d.key, d]));
+  const last = series[series.length - 1].key;
+
+  const cols = [];
+  const months = [];
+  let lastMonth = null;
+  let lastLabelAt = -9;
+  for (let weekStart = first, w = 0; weekStart <= last; weekStart = addDays(weekStart, 7), w++) {
+    // Ay etiketi, ayın ilk haftasında; komşu etikete çok yakınsa (3 sütundan az) atlanır, üst üste binmez.
+    const m = addDays(weekStart, 6).slice(5, 7);
+    if (m !== lastMonth && w - lastLabelAt >= 3) {
+      months.push(MONTHS_SHORT[+m - 1]);
+      lastLabelAt = w;
+    } else {
+      months.push('');
+    }
+    lastMonth = m;
+    const cells = [];
+    for (let d = 0; d < 7; d++) {
+      const key = addDays(weekStart, d);
+      const item = byKey.get(key);
+      if (!item) {
+        cells.push(h('i', { class: 'hm-cell hm-none' }));
+        continue;
+      }
+      const lvl = heatLevel(item.ratio);
+      const text = label ? label(item) : item.total ? `${formatLong(key)} · ${item.done}/${item.total}` : `${formatLong(key)} · plan yok`;
+      cells.push(h('i', { class: `hm-cell hm-${lvl < 0 ? 'empty' : lvl}`, 'data-tip': text, 'aria-label': text, role: 'img' }));
+    }
+    cols.push(h('div', { class: 'hm-col' }, cells));
+  }
+
+  const grid = h(
+    'div',
+    { class: 'hm-scroll' },
+    h('div', { class: 'hm-months', 'aria-hidden': 'true' }, months.map((m) => h('span', null, m))),
+    h('div', { class: 'hm-grid' }, cols),
+  );
+  const wrap = h(
+    'div',
+    { class: 'chart heatmap', style: color ? { '--hm': color } : null },
+    h(
+      'div',
+      { class: 'hm-body' },
+      h('div', { class: 'hm-days', 'aria-hidden': 'true' }, WEEKDAYS_MIN.map((d, i) => h('span', null, i % 2 === 0 ? d : ''))),
+      grid,
+    ),
+    h(
+      'div',
+      { class: 'hm-legend', 'aria-hidden': 'true' },
+      h('span', null, 'Az'),
+      [0, 1, 2, 3, 4].map((l) => h('i', { class: `hm-cell hm-${l}` })),
+      h('span', null, 'Tam'),
+    ),
+  );
+  withTooltip(wrap);
+  // En yeni hafta görünsün.
+  requestAnimationFrame(() => {
+    grid.scrollLeft = grid.scrollWidth;
+  });
+  return wrap;
+}
+
+/* ───────────────────────── sütun grafiği ───────────────────────── */
+
+/**
+ * Tek seriyi gösteren dikey sütunlar (0–100%).
+ * @param {{label:string, value:number|null, tip:string, highlight?:boolean}[]} items value: 0..1
+ * @param {{valueLabel?:(item)=>string}} opts son/öne çıkan sütunun üstüne yazılacak etiket
+ */
+export function columns(items, { valueLabel } = {}) {
+  const bars = items.map((it) =>
+    h(
+      'div',
+      { class: ['col', it.highlight && 'is-hl'], 'data-tip': it.tip, role: 'img', 'aria-label': it.tip },
+      h(
+        'div',
+        { class: 'col-track' },
+        it.value != null && h('div', { class: 'col-bar', style: { height: `${Math.max(2, Math.round(it.value * 100))}%` } }),
+        it.value != null && it.highlight && valueLabel && h('span', { class: 'col-value num', style: { bottom: `${Math.round(it.value * 100)}%` } }, valueLabel(it)),
+      ),
+      h('span', { class: 'col-label' }, it.label),
+    ),
+  );
+  const wrap = h(
+    'div',
+    { class: 'chart columns' },
+    h(
+      'div',
+      { class: 'col-grid', 'aria-hidden': 'true' },
+      h('span', { class: 'gl', style: { bottom: '100%' } }, h('em', null, '100')),
+      h('span', { class: 'gl', style: { bottom: '50%' } }, h('em', null, '50')),
+      h('span', { class: 'gl gl-base', style: { bottom: '0%' } }),
+    ),
+    h('div', { class: 'col-row' }, bars),
+  );
+  withTooltip(wrap);
+  return wrap;
+}
+
+/* ───────────────────────── çizgi (trend) ───────────────────────── */
+
+/**
+ * Günlük değer çizgisi (ör. gün puanı 1–10). Eksik günlerde çizgi kesilir.
+ * @param {{key:string, value:number|null}[]} points kronolojik, her gün bir öğe
+ */
+export function trendLine(points, { min = 1, max = 10, format = (v) => String(v) } = {}) {
+  const W = 320;
+  const H = 120;
+  const PAD_T = 10;
+  const PAD_B = 10;
+  const n = points.length;
+  const x = (i) => (n === 1 ? W / 2 : (i / (n - 1)) * (W - 12) + 6);
+  const y = (v) => PAD_T + (1 - (v - min) / (max - min)) * (H - PAD_T - PAD_B);
+
+  // Kesintili yol: değeri olmayan günde yeni parça başlat.
+  let d = '';
+  let pen = false;
+  points.forEach((p, i) => {
+    if (p.value == null) {
+      pen = false;
+      return;
+    }
+    d += `${pen ? 'L' : 'M'}${x(i).toFixed(1)} ${y(p.value).toFixed(1)} `;
+    pen = true;
+  });
+
+  const lastIdx = points.map((p) => p.value != null).lastIndexOf(true);
+  const svg = h(
+    'svg',
+    { viewBox: `0 0 ${W} ${H}`, class: 'trend-svg', preserveAspectRatio: 'none', 'aria-hidden': 'true' },
+    h('line', { class: 'tr-grid', x1: 0, x2: W, y1: y(max), y2: y(max) }),
+    h('line', { class: 'tr-grid', x1: 0, x2: W, y1: y((max + min) / 2), y2: y((max + min) / 2) }),
+    h('line', { class: 'tr-grid tr-base', x1: 0, x2: W, y1: y(min), y2: y(min) }),
+    h('path', { class: 'tr-line', d: d.trim() }),
+  );
+
+  // Noktalar ve dokunma alanları HTML'de (SVG ölçeklenince daire bozulmasın).
+  const dots = h('div', { class: 'tr-dots' });
+  points.forEach((p, i) => {
+    if (p.value == null) return;
+    dots.append(
+      h('i', {
+        class: ['tr-dot', i === lastIdx && 'is-last'],
+        style: { left: `${(x(i) / W) * 100}%`, top: `${(y(p.value) / H) * 100}%` },
+      }),
+    );
+  });
+  const hits = h(
+    'div',
+    { class: 'tr-hits' },
+    points.map((p) =>
+      h('i', { class: 'tr-hit', 'data-tip': `${formatShort(p.key)} · ${p.value == null ? 'kayıt yok' : format(p.value)}` }),
+    ),
+  );
+  const wrap = h(
+    'div',
+    { class: 'chart trend' },
+    h('div', { class: 'tr-labels', 'aria-hidden': 'true' }, h('span', null, String(max)), h('span', null, String(min))),
+    h('div', { class: 'tr-plot' }, svg, dots, hits),
+  );
+  withTooltip(wrap);
+  return wrap;
+}
+
+/* ───────────────────────── küçükler ───────────────────────── */
+
+/** Tek sayı kutusu — grafik gerektirmeyen başlık değerler için. */
+export function statTile(label, value, sub) {
+  return h(
+    'div',
+    { class: 'stat' },
+    h('span', { class: 'stat-label' }, label),
+    h('span', { class: 'stat-value num' }, value),
+    sub && h('span', { class: 'stat-sub' }, sub),
+  );
+}
+
+/** Yatay ince ilerleme çubuğu (0..1). */
+export function meter(value, { color } = {}) {
+  const pct = value == null ? 0 : Math.round(Math.max(0, Math.min(1, value)) * 100);
+  return h(
+    'span',
+    { class: 'meter', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': pct, style: color ? { '--c': color } : null },
+    h('span', { class: 'meter-fill', style: { width: `${pct}%` } }),
+  );
+}
+
+export const pct = (v) => (v == null ? '—' : `%${Math.round(v * 100)}`);

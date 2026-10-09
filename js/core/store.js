@@ -12,6 +12,7 @@ import { openDatabase } from './db.js';
 import { createLogger } from './logger.js';
 import { todayKey, isValidKey } from './dates.js';
 import * as V from './validate.js';
+import { buildSummary } from '../logic/summary.js';
 
 const log = createLogger('store');
 
@@ -45,6 +46,9 @@ const index = {
 
 const subscribers = new Set();
 let queue = Promise.resolve();
+/** Her değişiklikte artar; özet önbelleği bununla geçersizlenir. */
+let version = 0;
+let summaryCache = { key: null, value: null };
 
 /* ───────────────────────── iç yardımcılar ───────────────────────── */
 
@@ -77,6 +81,7 @@ function enqueue(label, fn) {
 }
 
 function emit(type, detail = {}) {
+  version++;
   log.debug(`değişiklik: ${type}`, detail);
   subscribers.forEach((fn) => {
     try {
@@ -112,7 +117,7 @@ function getHabitOrThrow(id) {
 }
 
 function isEmptyDay(rec) {
-  return !rec.note?.trim();
+  return !rec.note?.trim() && !rec.priorities?.length && !rec.review;
 }
 
 /* ───────────────────────── genel API ───────────────────────── */
@@ -161,6 +166,10 @@ export const store = {
     return !!state.backend?.persistent;
   },
 
+  get version() {
+    return version;
+  },
+
   /* —— okuma —— */
 
   /** Arşivlenmemiş alışkanlıklar (sıralı). */
@@ -195,7 +204,33 @@ export const store = {
   },
 
   day(date) {
-    return state.days.get(date) ?? { date, note: '' };
+    return state.days.get(date) ?? { date, note: '', priorities: [], review: null };
+  },
+
+  allDays() {
+    return [...state.days.values()];
+  },
+
+  /**
+   * Tüm istatistik/puan/rozet özeti. Veri değişmedikçe yeniden hesaplanmaz.
+   * Hesap ağırsa bile (yıllarca veri) ekran başına bir kez çalışır.
+   */
+  summary() {
+    const today = todayKey();
+    const key = `${version}|${today}`;
+    if (summaryCache.key === key) return summaryCache.value;
+    const end = log.time('summary');
+    const value = buildSummary({
+      habits: state.habits,
+      isDone: (id, d) => this.isDone(id, d),
+      datesFor: (id) => this.datesFor(id),
+      days: [...state.days.values()],
+      focusMinutes: this.focusMinutesTotal?.() ?? 0,
+      today,
+    });
+    summaryCache = { key, value };
+    end({ level: value.level.level, points: value.level.points });
+    return value;
   },
 
   /** İçeriği olan günler, yeniden eskiye. */
@@ -344,9 +379,11 @@ export const store = {
     return enqueue('updateDay', async () => {
       if (!isValidKey(date)) throw new V.ValidationError('Geçersiz tarih.');
       if (date > todayKey()) throw new V.ValidationError('Gelecek günler için kayıt tutulamaz.');
-      const current = state.days.get(date) ?? { date, note: '' };
+      const current = state.days.get(date) ?? { date, note: '', priorities: [], review: null };
       const next = { ...current, updatedAt: Date.now() };
       if ('note' in patch) next.note = V.cleanMultiline(patch.note, 5000);
+      if ('priorities' in patch) next.priorities = V.validatePriorities(patch.priorities);
+      if ('review' in patch) next.review = V.validateReview(patch.review);
 
       if (isEmptyDay(next)) {
         if (state.days.has(date)) await state.backend.delete('days', date);

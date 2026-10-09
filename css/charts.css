@@ -1,0 +1,400 @@
+/*
+ * Grafikler ve sayı kutuları.
+ * Yoğunluk skalası: tek ton (vurgu rengi), yüzeyle karıştırılarak 4 adım.
+ * Koyu temada adımlar açıklaşır, açık temada koyulaşır — her iki temada da tekdüze artar.
+ */
+
+.chart {
+  position: relative;
+}
+
+/* ───────────────────────── ipucu ───────────────────────── */
+
+.chart-tip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 5;
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  background: var(--toast-bg);
+  color: var(--toast-text);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 140ms var(--ease);
+}
+
+.chart-tip.show {
+  opacity: 1;
+}
+
+/* ───────────────────────── ısı haritası ───────────────────────── */
+
+.heatmap {
+  --hm: var(--accent);
+  --hm-0: var(--surface-3);
+  --hm-1: color-mix(in oklab, var(--hm) 32%, var(--surface-2));
+  --hm-2: color-mix(in oklab, var(--hm) 56%, var(--surface-2));
+  --hm-3: color-mix(in oklab, var(--hm) 78%, var(--surface-2));
+  --hm-4: var(--hm);
+  --cell: 12px;
+  --gap: 3px;
+}
+
+.hm-body {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px;
+}
+
+.hm-days {
+  display: grid;
+  grid-template-rows: repeat(7, var(--cell));
+  gap: var(--gap);
+  margin-top: calc(14px + 4px);
+  font-size: 9.5px;
+  line-height: var(--cell);
+  color: var(--text-3);
+}
+
+.hm-scroll {
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
+}
+
+.hm-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.hm-months {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: var(--cell);
+  gap: var(--gap);
+  height: 14px;
+  margin-bottom: 4px;
+  font-size: 10px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.hm-months span {
+  overflow: visible;
+}
+
+.hm-grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: var(--cell);
+  gap: var(--gap);
+  width: max-content;
+}
+
+.hm-col {
+  display: grid;
+  grid-template-rows: repeat(7, var(--cell));
+  gap: var(--gap);
+}
+
+.hm-cell {
+  display: block;
+  width: var(--cell);
+  height: var(--cell);
+  border-radius: 3px;
+  background: var(--hm-0);
+}
+
+.hm-cell[data-tip] {
+  cursor: pointer;
+}
+
+.hm-cell.is-active {
+  box-shadow: 0 0 0 1.5px var(--text);
+}
+
+.hm-none {
+  background: transparent;
+}
+
+.hm-empty {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.hm-1 {
+  background: var(--hm-1);
+}
+.hm-2 {
+  background: var(--hm-2);
+}
+.hm-3 {
+  background: var(--hm-3);
+}
+.hm-4 {
+  background: var(--hm-4);
+}
+
+.hm-legend {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.hm-legend span {
+  margin: 0 4px;
+}
+
+.hm-legend .hm-cell {
+  --cell: 10px;
+}
+
+/* ───────────────────────── sütunlar ───────────────────────── */
+
+.columns {
+  --plot-h: 120px;
+  padding-top: 18px;
+}
+
+.col-grid {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 18px;
+  height: var(--plot-h);
+  pointer-events: none;
+}
+
+.gl {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 1px solid var(--line);
+}
+
+.gl em {
+  position: absolute;
+  right: 0;
+  top: -15px;
+  font-style: normal;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-3);
+}
+
+.gl-base {
+  border-top-color: var(--line-strong);
+}
+
+.col-row {
+  position: relative;
+  display: flex;
+  gap: 2px;
+  padding-right: 26px; /* eksen etiketlerine yer */
+}
+
+.col {
+  flex: 1;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.col-track {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 100%;
+  height: var(--plot-h);
+}
+
+.col-bar {
+  width: min(100%, 22px);
+  border-radius: 4px 4px 0 0;
+  background: color-mix(in oklab, var(--accent) 55%, var(--surface-2));
+  transition: background-color var(--dur) var(--ease);
+}
+
+.col.is-hl .col-bar,
+.col.is-active .col-bar {
+  background: var(--accent);
+}
+
+.col-value {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -4px);
+  font-size: 11px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.col-label {
+  height: 14px;
+  font-size: 10.5px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+/* ───────────────────────── trend ───────────────────────── */
+
+.trend {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+}
+
+.tr-labels {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 2px 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-3);
+}
+
+.tr-plot {
+  position: relative;
+  height: 120px;
+}
+
+.trend-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.tr-grid {
+  stroke: var(--line);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.tr-base {
+  stroke: var(--line-strong);
+}
+
+.tr-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.tr-dots,
+.tr-hits {
+  position: absolute;
+  inset: 0;
+}
+
+.tr-dot {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.tr-dot.is-last {
+  width: 9px;
+  height: 9px;
+  margin: -4.5px 0 0 -4.5px;
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+.tr-hits {
+  display: flex;
+}
+
+.tr-hit {
+  flex: 1;
+  cursor: pointer;
+}
+
+.tr-hit.is-active {
+  background: linear-gradient(to right, transparent calc(50% - 0.5px), var(--line-strong) calc(50% - 0.5px), var(--line-strong) calc(50% + 0.5px), transparent calc(50% + 0.5px));
+}
+
+.chart-caption {
+  margin: 20px 0 8px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* ───────────────────────── sayı kutuları ───────────────────────── */
+
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.stat {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-width: 0;
+  padding: 14px 14px 12px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.stat-label {
+  font-size: 11.5px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stat-value {
+  font-size: 24px;
+  line-height: 1.1;
+  color: var(--text);
+}
+
+.stat-sub {
+  font-size: 11.5px;
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ───────────────────────── ölçer ───────────────────────── */
+
+.meter {
+  --c: var(--accent);
+  position: relative;
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.meter-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 2px;
+  background: var(--c);
+  transition: width 400ms var(--ease);
+}

@@ -6,11 +6,16 @@ import { icon } from '../ui/icons.js';
 import { store } from '../core/store.js';
 import { navigate } from '../core/router.js';
 import { todayKey, weekday, formatMonthYear, WEEKDAYS_SHORT } from '../core/dates.js';
+import { MOOD_LABELS } from '../ui/review-form.js';
 
 let query = '';
 
 function normalize(s) {
   return s.toLocaleLowerCase('tr-TR');
+}
+
+function searchable(d) {
+  return [d.note, d.review?.good, d.review?.improve, ...(d.priorities ?? []).map((p) => p.text)].filter(Boolean).join(' ');
 }
 
 export function render() {
@@ -20,7 +25,7 @@ export function render() {
 
   function fill() {
     const q = normalize(query.trim());
-    const items = q ? all.filter((d) => normalize(d.note ?? '').includes(q)) : all;
+    const items = q ? all.filter((d) => normalize(searchable(d)).includes(q)) : all;
     const groups = new Map();
     for (const d of items) {
       const m = d.date.slice(0, 7);
@@ -41,7 +46,7 @@ export function render() {
             h(
               'p',
               { class: 'muted pad-y' },
-              q ? `“${query.trim()}” için sonuç yok.` : 'Henüz not yok. Bugün ekranının altındaki not alanına yazdıkların burada birikir.',
+              q ? `“${query.trim()}” için sonuç yok.` : 'Henüz kayıt yok. Bugün ekranındaki notların, önceliklerin ve akşam değerlendirmelerin burada birikir.',
             ),
           ]),
     );
@@ -60,7 +65,20 @@ export function render() {
           h('span', { class: 'ji-num serif' }, String(Number(d.date.slice(8)))),
           h('span', { class: 'ji-wd' }, WEEKDAYS_SHORT[weekday(d.date)]),
         ),
-        h('span', { class: 'ji-body' }, h('span', { class: 'ji-note' }, d.note.trim())),
+        h(
+          'span',
+          { class: 'ji-body' },
+          (!!d.review || d.priorities?.length > 0) &&
+            h(
+              'span',
+              { class: 'ji-tags' },
+              d.review && h('span', { class: 'ji-score num' }, `${d.review.score}/10`),
+              d.review?.mood && h('span', null, MOOD_LABELS[d.review.mood - 1]),
+              d.priorities?.length > 0 && h('span', null, `${d.priorities.filter((p) => p.done).length}/${d.priorities.length} öncelik`),
+            ),
+          d.note?.trim() && h('span', { class: 'ji-note' }, d.note.trim()),
+          !d.note?.trim() && d.review?.good && h('span', { class: 'ji-note' }, d.review.good),
+        ),
       ),
     );
   }

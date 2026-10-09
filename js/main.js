@@ -18,14 +18,16 @@ import * as today from './views/today.js';
 import * as journal from './views/journal.js';
 import * as habits from './views/habits.js';
 import * as settings from './views/settings.js';
+import * as stats from './views/stats.js';
 
 const log = createLogger('app');
 
-const VIEWS = { today, journal, habits, settings };
+const VIEWS = { today, journal, habits, settings, stats };
 
 /** Alt menü. `match`: hangi rotalarda bu sekme etkin görünür. */
 const TABS = [
   { route: 'today', label: 'Bugün', icon: 'today', match: ['today', 'habits'] },
+  { route: 'stats', label: 'Analiz', icon: 'chart', match: ['stats'] },
   { route: 'journal', label: 'Günlük', icon: 'journal', match: ['journal'] },
   { route: 'settings', label: 'Ayarlar', icon: 'settings', match: ['settings'] },
 ];

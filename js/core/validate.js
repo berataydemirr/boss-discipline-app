@@ -11,16 +11,19 @@ export class ValidationError extends Error {
   }
 }
 
-/** Alışkanlık renkleri: iki temada da okunur, doygunluğu düşük, birbirinden ayırt edilebilir. */
+/**
+ * Alışkanlık renkleri. Sıralama bilinçli: komşu renkler normal görüşte ve renk körlüğünde
+ * ayrışacak şekilde dizildi (dataviz doğrulayıcısıyla kontrol edildi). Renk hiçbir yerde
+ * tek başına kimlik taşımaz; her zaman alışkanlığın adıyla birlikte gösterilir.
+ */
 export const HABIT_COLORS = [
-  { id: 'kiremit', name: 'Kiremit', hex: '#d8693f' },
-  { id: 'hardal', name: 'Hardal', hex: '#cf9f3e' },
-  { id: 'zeytin', name: 'Zeytin', hex: '#98a85f' },
-  { id: 'adacayi', name: 'Adaçayı', hex: '#76a995' },
-  { id: 'deniz', name: 'Deniz', hex: '#6f9cc4' },
-  { id: 'murdum', name: 'Mürdüm', hex: '#a487bf' },
-  { id: 'gul', name: 'Gül', hex: '#c98289' },
-  { id: 'kum', name: 'Kum', hex: '#b9a17f' },
+  { id: 'kiremit', name: 'Kiremit', hex: '#d65f34' },
+  { id: 'deniz', name: 'Deniz', hex: '#5592da' },
+  { id: 'hardal', name: 'Hardal', hex: '#bd8a28' },
+  { id: 'adacayi', name: 'Adaçayı', hex: '#2fa38e' },
+  { id: 'murdum', name: 'Mürdüm', hex: '#a679d4' },
+  { id: 'zeytin', name: 'Zeytin', hex: '#879c38' },
+  { id: 'gul', name: 'Gül', hex: '#d96c86' },
 ];
 
 export function colorHex(id) {
@@ -80,4 +83,36 @@ export function validateQuote(input) {
   if (text.length < 3) throw new ValidationError('Söz en az 3 karakter olmalı.');
   const author = cleanText(input?.author, 80);
   return { text, author };
+}
+
+export const MAX_PRIORITIES = 3;
+
+/** Günün öncelikleri: en fazla 3, boş metinler atılır. */
+export function validatePriorities(list) {
+  if (!Array.isArray(list)) throw new ValidationError('Öncelikler liste olmalı.');
+  return list
+    .slice(0, MAX_PRIORITIES)
+    .map((p) => ({ text: cleanText(p?.text, 120), done: !!p?.done }))
+    .filter((p) => p.text);
+}
+
+function scale(v, min, max, label) {
+  if (v == null || v === '') return null;
+  const n = Number(v);
+  if (!Number.isInteger(n) || n < min || n > max) throw new ValidationError(`${label} ${min}–${max} arasında olmalı.`);
+  return n;
+}
+
+/** Akşam değerlendirmesi. null → değerlendirmeyi sil. */
+export function validateReview(input) {
+  if (input == null) return null;
+  const review = {
+    score: scale(input.score, 1, 10, 'Gün puanı'),
+    mood: scale(input.mood, 1, 5, 'Ruh hali'),
+    energy: scale(input.energy, 1, 5, 'Enerji'),
+    good: cleanMultiline(input.good, 1000).trim(),
+    improve: cleanMultiline(input.improve, 1000).trim(),
+  };
+  if (review.score == null) throw new ValidationError('Günü 1–10 arasında puanla.');
+  return review;
 }
