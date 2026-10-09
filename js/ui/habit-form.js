@@ -138,12 +138,51 @@ export function openHabitForm(existing = null, defaults = {}) {
       const kindHint = h('span', { class: 'field-hint' });
       function syncKind() {
         daysField.hidden = draft.kind === 'quit';
+        reminderField.hidden = draft.kind === 'quit';
         kindHint.textContent =
           draft.kind === 'quit'
             ? 'Her gün kendiliğinden temiz sayılır; yalnızca kaydığın günleri işaretlersin.'
             : 'Planladığın günlerde yaptıkça işaretlersin.';
         nameInput.placeholder = draft.kind === 'quit' ? 'Örn. Gece 12’den sonra telefon' : 'Örn. 20 sayfa kitap';
       }
+
+      /* —— hatırlatma (v3) —— */
+      const reminderInput = h('input', {
+        class: 'input input-time',
+        type: 'time',
+        value: draft.reminder ?? '',
+        'aria-label': 'Hatırlatma saati',
+        onchange: (e) => (draft.reminder = e.target.value || null),
+      });
+      const reminderField = h(
+        'label',
+        { class: 'field' },
+        h('span', { class: 'field-label' }, 'Hatırlatma'),
+        h(
+          'div',
+          { class: 'inline-row' },
+          reminderInput,
+          h(
+            'button',
+            {
+              type: 'button',
+              class: 'btn btn-quiet btn-sm',
+              onclick: () => {
+                reminderInput.value = '';
+                draft.reminder = null;
+              },
+            },
+            'Kapat',
+          ),
+        ),
+        h(
+          'span',
+          { class: 'field-hint' },
+          store.settings.remindersEnabled
+            ? 'O gün henüz yapılmadıysa bu saatte hatırlatılır.'
+            : 'Hatırlatma için Ayarlar › Hatırlatıcılar açık olmalı.',
+        ),
+      );
 
       /* —— başlangıç —— */
       const startInput = h('input', {
@@ -219,6 +258,7 @@ export function openHabitForm(existing = null, defaults = {}) {
         ),
         daysField),
         h('div', { class: 'field' }, h('span', { class: 'field-label' }, 'Renk'), h('div', { class: 'swatches' }, swatches)),
+        reminderField,
         h(
           'label',
           { class: 'field' },

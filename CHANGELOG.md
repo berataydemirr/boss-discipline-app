@@ -1,5 +1,17 @@
 # Değişiklik günlüğü
 
+## v3.0.0 — Odak, plan, hatırlatıcılar, yedek
+- Odak zamanlayıcısı (Pomodoro): odak / kısa / uzun mola, alışkanlığa bağlama, bitince otomatik işaretleme;
+  telefon kilitlense ya da uygulama kapansa bile süre doğru (bitiş zamanı saklanır)
+- Plan: haftalık ve aylık hedefler, dönemler arası gezinme, bitmeyenleri yeni döneme taşıma
+- Hatırlatıcılar: alışkanlık başına saat, sabah öncelik ve akşam değerlendirme hatırlatması;
+  Android'de arka plan kontrolü (Periodic Background Sync), bildirime dokununca uygulama açılır
+- Yedek: JSON dışa aktarma (telefonda paylaş menüsü), doğrulamalı geri yükleme, tüm verileri silme,
+  kalıcı depolama izni
+- Analiz: odak süresi bölümü
+- Alt menü 5 sekme: Bugün, Plan, Odak, Analiz, Günlük (Ayarlar: Bugün › sağ üst)
+- Veritabanı şeması v2 (migration ile, v1 verisi kayıpsız taşınır)
+
 ## v2.0.0 — Analiz ve yansıma
 - Analiz ekranı: seviye, puan, 12 aylık ısı haritası, haftalık oran, haftanın günleri deseni
 - Alışkanlık ayrıntısı: seri, en iyi seri, 30 günlük oran, 6 aylık takvim

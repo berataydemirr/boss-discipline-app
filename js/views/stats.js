@@ -39,6 +39,7 @@ export function render() {
     weeklySection(habits, isDone, today),
     weekdaySection(habits, isDone, sum.earliest, today),
     habitTable(sum),
+    focusSection(today),
     moodSection(habits, isDone, days, today),
     badgesSection(sum.badges),
   );
@@ -169,6 +170,36 @@ function habitTable(sum) {
         );
       }),
     ),
+  );
+}
+
+/* ───────────────────────── odak (v3) ───────────────────────── */
+
+function focusSection(today) {
+  if (!store.focusSessions().length) return null;
+  const days = Array.from({ length: 14 }, (_, i) => addDays(today, i - 13));
+  const mins = days.map((d) => store.focusMinutesOn(d));
+  const max = Math.max(60, ...mins);
+  const week = mins.slice(-7).reduce((a, b) => a + b, 0);
+  const total = store.focusMinutesTotal();
+  const hours = (m) => (m >= 60 ? `${(m / 60).toLocaleString('tr-TR', { maximumFractionDigits: 1 })} sa` : `${m} dk`);
+  const items = days.map((d, i) => ({
+    label: i % 2 === 1 ? String(Number(d.slice(8))) : '',
+    value: mins[i] ? mins[i] / max : null,
+    highlight: d === today,
+    tip: `${formatShort(d)} · ${mins[i]} dk`,
+  }));
+  return section(
+    'Odak',
+    'son 14 gün',
+    h(
+      'div',
+      { class: 'stat-row stat-row-3' },
+      statTile('Bu hafta', hours(week)),
+      statTile('Günlük ort.', `${Math.round(week / 7)} dk`),
+      statTile('Toplam', hours(total)),
+    ),
+    columns(items, { valueLabel: () => `${mins[mins.length - 1]} dk`, scale: [`${max}`, `${Math.round(max / 2)}`] }),
   );
 }
 

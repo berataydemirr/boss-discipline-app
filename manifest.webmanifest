@@ -20,6 +20,8 @@
   ],
   "shortcuts": [
     { "name": "Bugün", "url": "./#/today" },
+    { "name": "Odak", "url": "./#/focus" },
+    { "name": "Plan", "url": "./#/plan" },
     { "name": "Analiz", "url": "./#/stats" },
     { "name": "Günlük", "url": "./#/journal" }
   ]

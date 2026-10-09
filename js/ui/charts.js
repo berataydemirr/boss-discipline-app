@@ -150,7 +150,7 @@ export function heatmap(series, { color, label } = {}) {
  * @param {{label:string, value:number|null, tip:string, highlight?:boolean}[]} items value: 0..1
  * @param {{valueLabel?:(item)=>string}} opts son/öne çıkan sütunun üstüne yazılacak etiket
  */
-export function columns(items, { valueLabel } = {}) {
+export function columns(items, { valueLabel, scale = ['100', '50'] } = {}) {
   const bars = items.map((it) =>
     h(
       'div',
@@ -170,8 +170,8 @@ export function columns(items, { valueLabel } = {}) {
     h(
       'div',
       { class: 'col-grid', 'aria-hidden': 'true' },
-      h('span', { class: 'gl', style: { bottom: '100%' } }, h('em', null, '100')),
-      h('span', { class: 'gl', style: { bottom: '50%' } }, h('em', null, '50')),
+      h('span', { class: 'gl', style: { bottom: '100%' } }, h('em', null, scale[0])),
+      h('span', { class: 'gl', style: { bottom: '50%' } }, h('em', null, scale[1])),
       h('span', { class: 'gl gl-base', style: { bottom: '0%' } }),
     ),
     h('div', { class: 'col-row' }, bars),

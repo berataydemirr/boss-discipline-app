@@ -10,6 +10,11 @@ import { applyTheme, ACCENTS } from '../ui/theme.js';
 import { store } from '../core/store.js';
 import { navigate } from '../core/router.js';
 import { createLogger, isDebug, setDebug, getLogs, clearLogs, formatLogs, formatTime, onLog } from '../core/logger.js';
+import { formatLong, toKey } from '../core/dates.js';
+import * as reminders from '../features/reminders.js';
+import { exportToFile, readBackupFile, importBackup, requestPersistence, storageInfo } from '../features/backup.js';
+import { resetTodayDrafts } from './today.js';
+import { unregisterAll } from '../core/sw-register.js';
 
 const log = createLogger('settings');
 
@@ -68,6 +73,9 @@ export function render({ params }) {
     ),
 
     quotesGroup(),
+    remindersGroup(),
+    focusGroup(),
+    dataGroup(),
 
     group(
       'Geliştirici',
@@ -85,6 +93,11 @@ export function render({ params }) {
         store.isPersistent ? 'IndexedDB · veriler bu cihazda saklanıyor' : 'Bellek · veriler KALICI DEĞİL (gizli sekme olabilir)',
         null,
       ),
+      linkRow('Önbelleği temizle ve yenile', 'Uygulama eski sürümde takılırsa', async () => {
+        if (!(await confirmDialog({ title: 'Önbellek temizlensin mi?', message: 'Verilerin silinmez; uygulama dosyaları yeniden indirilir.', confirmLabel: 'Temizle' }))) return;
+        await unregisterAll();
+        location.reload();
+      }),
     ),
 
     h(
@@ -103,6 +116,205 @@ async function setAndApply(key, value) {
   } catch (e) {
     showError(e);
   }
+}
+
+/* ───────────────────────── hatırlatıcılar (v3) ───────────────────────── */
+
+function permissionText() {
+  const p = reminders.permission();
+  if (p === 'unsupported') {
+    return reminders.isIOS() && !reminders.isStandalone()
+      ? 'iPhone’da bildirim için önce Safari › Paylaş › Ana Ekrana Ekle ile kur, oradan aç.'
+      : 'Bu tarayıcı bildirimleri desteklemiyor; hatırlatmalar uygulama içinde görünür.';
+  }
+  if (p === 'granted') return 'Bildirim izni verildi.';
+  if (p === 'denied') return 'Bildirim izni reddedildi; tarayıcı ayarlarından açabilirsin. Hatırlatmalar uygulama içinde görünür.';
+  return 'Açınca bildirim izni istenecek.';
+}
+
+function timeInput(key) {
+  return h('input', {
+    class: 'input input-time',
+    type: 'time',
+    value: store.settings[key] ?? '',
+    'aria-label': key === 'morningTime' ? 'Sabah hatırlatma saati' : 'Akşam hatırlatma saati',
+    onchange: (e) => store.setSetting(key, e.target.value || null).catch(showError),
+  });
+}
+
+function remindersGroup() {
+  const s = store.settings;
+  return group(
+    'Hatırlatıcılar',
+    row(
+      'Hatırlatıcılar',
+      permissionText(),
+      toggle(s.remindersEnabled, async (on) => {
+        try {
+          if (on) {
+            const p = reminders.permission() === 'default' ? await reminders.requestPermission() : reminders.permission();
+            await store.setSetting('remindersEnabled', true);
+            reminders.startReminders();
+            if (p === 'granted') reminders.registerPeriodicSync();
+            toast(p === 'granted' ? 'Hatırlatıcılar açık' : 'Hatırlatıcılar uygulama içinde gösterilecek');
+          } else {
+            await store.setSetting('remindersEnabled', false);
+            reminders.stopReminders();
+            reminders.unregisterPeriodicSync();
+          }
+        } catch (e) {
+          showError(e);
+        }
+      }),
+    ),
+    s.remindersEnabled && row('Sabah · öncelikler', 'Öncelikleri yazmadıysan hatırlatır.', timeInput('morningTime')),
+    s.remindersEnabled && row('Akşam · değerlendirme', 'Günü değerlendirmediysen hatırlatır.', timeInput('eveningTime')),
+    s.remindersEnabled &&
+      linkRow('Deneme bildirimi', 'Alışkanlık hatırlatma saatini alışkanlığı düzenlerken seçersin.', async () => {
+        try {
+          if (reminders.permission() === 'granted') {
+            const reg = await navigator.serviceWorker.ready;
+            await reg.showNotification('Disiplin', { body: 'Hatırlatıcılar çalışıyor.', icon: './icons/icon-192.png', tag: 'disiplin-test' });
+          } else {
+            toast('Disiplin — Hatırlatıcılar çalışıyor (uygulama içi).');
+          }
+        } catch (e) {
+          showError(e, 'Bildirim gösterilemedi.');
+        }
+      }),
+  );
+}
+
+/* ───────────────────────── odak (v3) ───────────────────────── */
+
+function stepper(key, { min, max, unit }) {
+  const v = store.settings[key];
+  const set = (n) => store.setSetting(key, Math.min(max, Math.max(min, n))).catch(showError);
+  return h(
+    'div',
+    { class: 'stepper' },
+    h('button', { class: 'btn-icon btn-icon-sm', 'aria-label': 'Azalt', disabled: v <= min, onclick: () => set(v - (v > 10 ? 5 : 1)) }, '−'),
+    h('span', { class: 'stepper-value num' }, `${v}${unit ? ` ${unit}` : ''}`),
+    h('button', { class: 'btn-icon btn-icon-sm', 'aria-label': 'Artır', disabled: v >= max, onclick: () => set(v + (v >= 10 ? 5 : 1)) }, '+'),
+  );
+}
+
+function focusGroup() {
+  return group(
+    'Odak',
+    row('Odak süresi', null, stepper('focusMinutes', { min: 5, max: 180, unit: 'dk' })),
+    row('Kısa mola', null, stepper('shortBreak', { min: 1, max: 60, unit: 'dk' })),
+    row('Uzun mola', null, stepper('longBreak', { min: 5, max: 90, unit: 'dk' })),
+    row('Uzun mola sıklığı', 'Kaç odak oturumunda bir', stepper('longEvery', { min: 2, max: 8 })),
+    row(
+      'Bitince işaretle',
+      'Odak bitince bağlı alışkanlığı bugün için işaretler.',
+      toggle(store.settings.focusAutoCheck, (on) => store.setSetting('focusAutoCheck', on).catch(showError)),
+    ),
+  );
+}
+
+/* ───────────────────────── veri (v3) ───────────────────────── */
+
+function dataGroup() {
+  const last = store.settings.lastExportAt;
+  const staleDays = last ? Math.floor((Date.now() - last) / 86400000) : null;
+  const persistHint = h('span', { class: 'list-hint' }, '…');
+  storageInfo().then((i) => {
+    const used = i.usage != null ? `${(i.usage / 1024 / 1024).toFixed(1)} MB kullanılıyor` : '';
+    persistHint.textContent =
+      i.persisted === true ? `Kalıcı · ${used}` : i.persisted === false ? `Tarayıcı yer açmak için silebilir · ${used}` : 'Bilinmiyor';
+  });
+
+  const fileInput = h('input', {
+    type: 'file',
+    accept: 'application/json,.json',
+    hidden: true,
+    onchange: async (e) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (!file) return;
+      try {
+        const obj = await readBackupFile(file);
+        const c = obj?.counts ?? {};
+        const when = obj?.exportedAt ? formatLong(toKey(new Date(obj.exportedAt))) : 'bilinmeyen tarih';
+        const ok = await confirmDialog({
+          title: 'Yedek geri yüklensin mi?',
+          message: `${when} tarihli yedek: ${c.habits ?? '?'} alışkanlık, ${c.checks ?? '?'} işaret, ${c.days ?? '?'} gün. Bu cihazdaki mevcut verilerin YERİNE geçecek.`,
+          confirmLabel: 'Geri yükle',
+          danger: true,
+        });
+        if (!ok) return;
+        const { counts, skipped } = await importBackup(obj);
+        resetTodayDrafts();
+        toast(`${counts.habits} alışkanlık, ${counts.checks} işaret geri yüklendi${skipped ? ` · ${skipped} bozuk kayıt atlandı` : ''}.`, { duration: 5000 });
+      } catch (err) {
+        showError(err, 'Yedek geri yüklenemedi.');
+      }
+    },
+  });
+
+  return group(
+    'Veri',
+    linkRow(
+      'Yedeği dışa aktar',
+      last ? `Son yedek ${staleDays === 0 ? 'bugün' : `${staleDays} gün önce`}` : 'Henüz yedek alınmadı. Veriler yalnızca bu cihazda.',
+      async () => {
+        try {
+          const r = await exportToFile();
+          if (r !== 'cancelled') toast('Yedek hazır');
+        } catch (e) {
+          showError(e, 'Yedek alınamadı.');
+        }
+      },
+    ),
+    linkRow('Yedekten geri yükle', 'JSON yedek dosyası seç', () => fileInput.click()),
+    fileInput,
+    h(
+      'div',
+      { class: 'list-row' },
+      h('div', { class: 'list-text' }, h('span', { class: 'list-title' }, 'Kalıcı depolama'), persistHint),
+      h(
+        'button',
+        {
+          class: 'btn btn-ghost btn-sm',
+          onclick: async () => {
+            const ok = await requestPersistence();
+            toast(ok ? 'Veriler kalıcı olarak işaretlendi' : 'Tarayıcı izin vermedi (uygulamayı ana ekrana eklemek yardımcı olur)');
+            const i = await storageInfo();
+            persistHint.textContent = i.persisted ? 'Kalıcı' : 'Tarayıcı yer açmak için silebilir';
+          },
+        },
+        'İste',
+      ),
+    ),
+    h(
+      'button',
+      {
+        class: 'list-row is-link text-danger',
+        onclick: async () => {
+          const first = await confirmDialog({
+            title: 'Tüm veriler silinsin mi?',
+            message: 'Alışkanlıklar, işaretler, notlar, hedefler ve ayarlar silinir. Önce yedek almanı öneririm.',
+            confirmLabel: 'Devam',
+            danger: true,
+          });
+          if (!first) return;
+          const second = await confirmDialog({ title: 'Emin misin?', message: 'Bu işlem geri alınamaz.', confirmLabel: 'Hepsini sil', danger: true });
+          if (!second) return;
+          try {
+            await store.resetAll();
+            resetTodayDrafts();
+            toast('Tüm veriler silindi');
+            navigate('today');
+          } catch (e) {
+            showError(e);
+          }
+        },
+      },
+      h('div', { class: 'list-text' }, h('span', { class: 'list-title' }, 'Tüm verileri sil')),
+    ),
+  );
 }
 
 /* ───────────────────────── sözler ───────────────────────── */

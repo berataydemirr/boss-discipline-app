@@ -19,17 +19,22 @@ import * as journal from './views/journal.js';
 import * as habits from './views/habits.js';
 import * as settings from './views/settings.js';
 import * as stats from './views/stats.js';
+import * as plan from './views/plan.js';
+import * as focusView from './views/focus.js';
+import { initFocus } from './features/focus.js';
+import { startReminders, registerPeriodicSync, permission } from './features/reminders.js';
 
 const log = createLogger('app');
 
-const VIEWS = { today, journal, habits, settings, stats };
+const VIEWS = { today, journal, habits, settings, stats, plan, focus: focusView };
 
 /** Alt menü. `match`: hangi rotalarda bu sekme etkin görünür. */
 const TABS = [
-  { route: 'today', label: 'Bugün', icon: 'today', match: ['today', 'habits'] },
+  { route: 'today', label: 'Bugün', icon: 'today', match: ['today', 'habits', 'settings'] },
+  { route: 'plan', label: 'Plan', icon: 'target', match: ['plan'] },
+  { route: 'focus', label: 'Odak', icon: 'timer', match: ['focus'] },
   { route: 'stats', label: 'Analiz', icon: 'chart', match: ['stats'] },
   { route: 'journal', label: 'Günlük', icon: 'journal', match: ['journal'] },
-  { route: 'settings', label: 'Ayarlar', icon: 'settings', match: ['settings'] },
 ];
 
 /* ───────────────────────── global hata yakalama ───────────────────────── */
@@ -142,6 +147,7 @@ async function boot() {
       toast('Uygulama başka bir sekmede güncellendi.', { type: 'warn', action: { label: 'Yenile', fn: () => location.reload() } });
       return;
     }
+    if (evt.type === 'settings' && evt.key === 'remindersEnabled') startReminders();
     if (evt.silent || pending) return;
     pending = true;
     requestAnimationFrame(() => {
@@ -164,6 +170,9 @@ async function boot() {
 
   router.start();
   registerServiceWorker();
+  initFocus();
+  startReminders();
+  if (store.settings.remindersEnabled && permission() === 'granted') registerPeriodicSync();
 
   window.disiplin = { store, logs: getLogs, setDebug, version: self.DISIPLIN_VERSION, navigate };
   end();

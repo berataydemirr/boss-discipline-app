@@ -9,7 +9,7 @@
  * ÖNEMLİ: Yeni bir dosya eklediğinde PRECACHE listesine de ekle.
  * `npm test` (tests/precache.test.mjs) eksik/fazla dosyayı yakalar.
  */
-importScripts('./js/version.js');
+importScripts('./js/version.js', './js/reminder-core.js');
 
 const VERSION = self.DISIPLIN_VERSION;
 const CACHE = `disiplin-${VERSION}`;
@@ -25,12 +25,14 @@ const PRECACHE = [
   './css/views.css',
   './css/charts.css',
   './css/insights.css',
+  './css/plan-focus.css',
   './icons/icon.svg',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/maskable-512.png',
   './icons/apple-touch-icon.png',
   './js/version.js',
+  './js/reminder-core.js',
   './js/main.js',
   './js/core/logger.js',
   './js/core/dates.js',
@@ -44,6 +46,10 @@ const PRECACHE = [
   './js/logic/quotes.js',
   './js/logic/gamification.js',
   './js/logic/summary.js',
+  './js/logic/backup-schema.js',
+  './js/features/focus.js',
+  './js/features/reminders.js',
+  './js/features/backup.js',
   './js/ui/dom.js',
   './js/ui/icons.js',
   './js/ui/toast.js',
@@ -58,6 +64,8 @@ const PRECACHE = [
   './js/views/habits.js',
   './js/views/settings.js',
   './js/views/stats.js',
+  './js/views/plan.js',
+  './js/views/focus.js',
 ];
 
 const log = (...args) => console.info('%c[sw]', 'color:#7fa6c9', ...args);
@@ -134,4 +142,97 @@ async function staleWhileRevalidate(req) {
     })
     .catch(() => null);
   return hit || (await network) || new Response('', { status: 504 });
+}
+
+/* ───────────────────────── bildirimler ───────────────────────── */
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = new URL(event.notification.data?.url || './#/today', self.registration.scope).href;
+  event.waitUntil(
+    (async () => {
+      const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      const existing = all.find((c) => c.url.startsWith(self.registration.scope));
+      if (existing) {
+        await existing.focus();
+        if ('navigate' in existing) await existing.navigate(target).catch(() => {});
+        return;
+      }
+      await self.clients.openWindow(target);
+    })(),
+  );
+});
+
+/* ───────────────────── arka plan hatırlatma (Android/Chrome) ───────────────────── */
+
+self.addEventListener('periodicsync', (event) => {
+  if (event.tag === 'disiplin-reminders') event.waitUntil(backgroundReminders());
+});
+
+function idbOpen() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('disiplin'); // sürüm verilmez: sayfanın oluşturduğu şemayı kullan
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+    req.onupgradeneeded = () => {
+      // Veritabanı hiç oluşturulmamış: hiçbir şey yapma.
+      req.transaction.abort();
+    };
+  });
+}
+
+function idbAll(db, store) {
+  return new Promise((resolve, reject) => {
+    const r = db.transaction(store).objectStore(store).getAll();
+    r.onsuccess = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+  });
+}
+
+function idbPut(db, store, value) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readwrite');
+    tx.objectStore(store).put(value);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function backgroundReminders() {
+  let db;
+  try {
+    db = await idbOpen();
+    if (!db.objectStoreNames.contains('meta')) return;
+    const R = self.DisiplinReminders;
+    const now = new Date();
+    const today = R.dateKey(now);
+    const [habits, checks, days, settingsRows, metaRows] = await Promise.all(
+      ['habits', 'checks', 'days', 'settings', 'meta'].map((s) => idbAll(db, s)),
+    );
+    const settings = Object.fromEntries(settingsRows.map((r) => [r.key, r.value]));
+    if (settings.morningTime === undefined) settings.morningTime = '08:30';
+    if (settings.eveningTime === undefined) settings.eveningTime = '21:30';
+    const logRec = metaRows.find((m) => m.key === 'reminderLog')?.value;
+    const fired = R.firedSet(logRec, today);
+    const doneToday = new Set(checks.filter((c) => c.date === today).map((c) => c.habitId));
+    const day = days.find((d) => d.date === today) || null;
+    // Arka planda kontrol seyrek (≈ saatte bir) olduğundan pencere geniş tutulur.
+    const due = R.dueReminders({ habits, doneToday, day, settings, fired, now, windowMin: 150 });
+    for (const n of due) {
+      await self.registration.showNotification(n.title, {
+        body: n.body,
+        tag: `disiplin-${n.id}`,
+        icon: './icons/icon-192.png',
+        badge: './icons/icon-192.png',
+        data: { url: n.url },
+      });
+      fired.add(n.id);
+    }
+    if (due.length) await idbPut(db, 'meta', { key: 'reminderLog', value: { date: today, ids: [...fired] } });
+    log('arka plan hatırlatma', due.length);
+  } catch (e) {
+    console.error('[sw] arka plan hatırlatma başarısız', e);
+  } finally {
+    db?.close();
+  }
 }

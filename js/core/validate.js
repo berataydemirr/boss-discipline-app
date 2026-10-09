@@ -87,6 +87,28 @@ export function validateQuote(input) {
 
 export const MAX_PRIORITIES = 3;
 
+const PERIOD_KEY_RE = { week: /^\d{4}-W\d{2}$/, month: /^\d{4}-\d{2}$/ };
+
+export function validateGoal(input) {
+  const title = cleanText(input?.title, 120);
+  if (!title) throw new ValidationError('Hedefe bir başlık yaz.');
+  const period = input?.period === 'month' ? 'month' : input?.period === 'week' ? 'week' : null;
+  if (!period) throw new ValidationError('Hedef dönemi hafta ya da ay olmalı.');
+  if (!PERIOD_KEY_RE[period].test(input?.periodKey ?? '')) throw new ValidationError('Hedef dönemi geçersiz.');
+  return { title, period, periodKey: input.periodKey, done: !!input.done };
+}
+
+export function validateFocusSession(input) {
+  const start = Number(input?.start);
+  const end = Number(input?.end);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) throw new ValidationError('Odak oturumu zamanı geçersiz.');
+  const minutes = Math.round(Number(input?.minutes));
+  if (!Number.isInteger(minutes) || minutes < 1 || minutes > 600) throw new ValidationError('Odak süresi 1–600 dakika olmalı.');
+  if (!isValidKey(input?.date)) throw new ValidationError('Odak oturumu tarihi geçersiz.');
+  const habitId = typeof input?.habitId === 'string' && input.habitId ? input.habitId : null;
+  return { start, end, minutes, date: input.date, habitId };
+}
+
 /** Günün öncelikleri: en fazla 3, boş metinler atılır. */
 export function validatePriorities(list) {
   if (!Array.isArray(list)) throw new ValidationError('Öncelikler liste olmalı.');

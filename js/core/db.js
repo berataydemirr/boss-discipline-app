@@ -12,7 +12,7 @@ import { createLogger } from './logger.js';
 const log = createLogger('db');
 
 export const DB_NAME = 'disiplin';
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 
 export const MIGRATIONS = {
   1(db) {
@@ -24,9 +24,16 @@ export const MIGRATIONS = {
     db.createObjectStore('quotes', { keyPath: 'id' });
     db.createObjectStore('settings', { keyPath: 'key' });
   },
+  // v3: odak oturumları, hedefler, iç kayıtlar (hatırlatıcı günlüğü vb.)
+  2(db) {
+    const focus = db.createObjectStore('focus', { keyPath: 'id' });
+    focus.createIndex('byDate', 'date');
+    db.createObjectStore('goals', { keyPath: 'id' });
+    db.createObjectStore('meta', { keyPath: 'key' });
+  },
 };
 
-export const STORES = ['habits', 'checks', 'days', 'quotes', 'settings'];
+export const STORES = ['habits', 'checks', 'days', 'quotes', 'settings', 'focus', 'goals', 'meta'];
 
 function reqToPromise(req) {
   return new Promise((resolve, reject) => {
@@ -91,6 +98,11 @@ class IdbBackend {
     return reqToPromise(tx.objectStore(store).getAll());
   }
 
+  async get(store, key) {
+    const tx = this.db.transaction(store, 'readonly');
+    return reqToPromise(tx.objectStore(store).get(key));
+  }
+
   async put(store, value) {
     const tx = this.db.transaction(store, 'readwrite');
     tx.objectStore(store).put(value);
@@ -137,7 +149,7 @@ class MemoryBackend {
     this.kind = 'memory';
     this.persistent = false;
     this.data = new Map(stores.map((s) => [s, new Map()]));
-    this.keyPaths = { days: 'date', settings: 'key' };
+    this.keyPaths = { days: 'date', settings: 'key', meta: 'key' };
   }
 
   keyOf(store, v) {
@@ -146,6 +158,11 @@ class MemoryBackend {
 
   async getAll(store) {
     return [...this.data.get(store).values()].map((v) => structuredClone(v));
+  }
+
+  async get(store, key) {
+    const v = this.data.get(store).get(key);
+    return v === undefined ? undefined : structuredClone(v);
   }
 
   async put(store, value) {

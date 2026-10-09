@@ -126,6 +126,25 @@ export function relativeLabel(key, today) {
   return '';
 }
 
+/** Ayın ilk günü, n ay ileri/geri. addMonths('2026-10-09', -1) === '2026-09-01' */
+export function addMonths(key, n) {
+  const [y, m] = parts(key);
+  const total = y * 12 + (m - 1) + n;
+  return `${Math.floor(total / 12)}-${pad((total % 12) + 1)}-01`;
+}
+
+/** Hedef dönemi anahtarı: hafta → '2026-W41', ay → '2026-10'. */
+export function periodKey(period, key) {
+  return period === 'month' ? monthKey(key) : weekKey(key);
+}
+
+/** Dönemin ilk ve son günü. */
+export function periodRange(period, key) {
+  if (period === 'month') return { start: startOfMonth(key), end: endOfMonth(key) };
+  const start = startOfWeek(key);
+  return { start, end: addDays(start, 6) };
+}
+
 export const isValidTime = (s) => typeof s === 'string' && TIME_RE.test(s);
 
 /** 'HH:MM' → gün içindeki dakika; geçersizse null. */

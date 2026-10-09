@@ -366,7 +366,7 @@ input[type='time'].input {
 
 .switch:checked::after {
   transform: translateX(18px);
-  background: var(--on-accent);
+  background: #fdf9f2;
 }
 
 /* ───────────────────────── liste kartı (ayarlar) ───────────────────────── */

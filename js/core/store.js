@@ -8,11 +8,12 @@
  * - Her değişiklik sonrası abonelere { type, silent } olayı yayılır. silent=true olaylar
  *   (ör. not yazarken otomatik kayıt) ekranı yeniden çizdirmez; odak kaybolmaz.
  */
-import { openDatabase } from './db.js';
+import { openDatabase, DB_VERSION } from './db.js';
 import { createLogger } from './logger.js';
-import { todayKey, isValidKey } from './dates.js';
+import { todayKey, isValidKey, isValidTime } from './dates.js';
 import * as V from './validate.js';
 import { buildSummary } from '../logic/summary.js';
+import { makeBackup, validateBackup } from '../logic/backup-schema.js';
 
 const log = createLogger('store');
 
@@ -21,14 +22,36 @@ export const DEFAULT_SETTINGS = Object.freeze({
   accent: 'ember', // 'ember' | 'moss' | 'ochre' | 'tide'
   quoteSource: 'all', // 'all' | 'favorites' | 'mine'
   favQuotes: [],
+  // v3
+  remindersEnabled: false,
+  morningTime: '08:30', // öncelik hatırlatması
+  eveningTime: '21:30', // akşam değerlendirmesi hatırlatması
+  focusMinutes: 25,
+  shortBreak: 5,
+  longBreak: 15,
+  longEvery: 4, // kaç odaktan sonra uzun mola
+  focusAutoCheck: true, // odak bitince bağlı alışkanlığı işaretle
+  lastExportAt: null,
 });
+
+const minutes = (lo, hi) => (v) => Number.isInteger(v) && v >= lo && v <= hi;
 
 const SETTING_VALIDATORS = {
   theme: (v) => ['system', 'dark', 'light'].includes(v),
   accent: (v) => ['ember', 'moss', 'ochre', 'tide'].includes(v),
   quoteSource: (v) => ['all', 'favorites', 'mine'].includes(v),
   favQuotes: (v) => Array.isArray(v) && v.every((x) => typeof x === 'string'),
+  remindersEnabled: (v) => typeof v === 'boolean',
+  morningTime: (v) => v === null || isValidTime(v),
+  eveningTime: (v) => v === null || isValidTime(v),
+  focusMinutes: minutes(1, 180),
+  shortBreak: minutes(1, 60),
+  longBreak: minutes(1, 90),
+  longEvery: minutes(2, 8),
+  focusAutoCheck: (v) => typeof v === 'boolean',
+  lastExportAt: (v) => v === null || Number.isFinite(v),
 };
+export { SETTING_VALIDATORS };
 
 const state = {
   ready: false,
@@ -38,6 +61,8 @@ const state = {
   days: new Map(), // date → { date, note, ... }
   quotes: [], // kullanıcının kendi sözleri
   settings: { ...DEFAULT_SETTINGS },
+  focus: [], // odak oturumları, eskiden yeniye
+  goals: [],
 };
 
 const index = {
@@ -120,6 +145,27 @@ function isEmptyDay(rec) {
   return !rec.note?.trim() && !rec.priorities?.length && !rec.review;
 }
 
+/** Tüm veriyi veritabanından belleğe alır. */
+async function loadAll() {
+  const [habits, checks, days, quotes, settings, focus, goals] = await Promise.all(
+    ['habits', 'checks', 'days', 'quotes', 'settings', 'focus', 'goals'].map((s) => state.backend.getAll(s)),
+  );
+  state.habits = habits;
+  sortHabits();
+  state.checks = new Map(checks.map((c) => [c.id, c]));
+  state.days = new Map(days.map((d) => [d.date, d]));
+  state.quotes = quotes.sort((a, b) => a.createdAt - b.createdAt);
+  state.settings = { ...DEFAULT_SETTINGS };
+  for (const { key, value } of settings) {
+    if (key in DEFAULT_SETTINGS && SETTING_VALIDATORS[key]?.(value)) state.settings[key] = value;
+    else log.warn('Geçersiz/eski ayar yok sayıldı', { key, value });
+  }
+  state.focus = focus.sort((a, b) => a.start - b.start);
+  state.goals = goals.sort((a, b) => a.createdAt - b.createdAt);
+  rebuildIndex();
+  return { habits: habits.length, checks: checks.length, days: days.length, focus: focus.length, goals: goals.length };
+}
+
 /* ───────────────────────── genel API ───────────────────────── */
 
 export const store = {
@@ -130,28 +176,12 @@ export const store = {
     state.backend = await openDatabase({
       onVersionChange: () => emit('db-closed'),
     });
-    const [habits, checks, days, quotes, settings] = await Promise.all([
-      state.backend.getAll('habits'),
-      state.backend.getAll('checks'),
-      state.backend.getAll('days'),
-      state.backend.getAll('quotes'),
-      state.backend.getAll('settings'),
-    ]);
-
-    state.habits = habits;
-    sortHabits();
-    state.checks = new Map(checks.map((c) => [c.id, c]));
-    state.days = new Map(days.map((d) => [d.date, d]));
-    state.quotes = quotes.sort((a, b) => a.createdAt - b.createdAt);
-    state.settings = { ...DEFAULT_SETTINGS };
-    for (const { key, value } of settings) {
-      if (key in DEFAULT_SETTINGS && SETTING_VALIDATORS[key]?.(value)) state.settings[key] = value;
-      else log.warn('Geçersiz/eski ayar yok sayıldı', { key, value });
-    }
-    rebuildIndex();
+    const counts = await loadAll();
     state.ready = true;
-    end({ habits: habits.length, checks: checks.length, days: days.length, backend: state.backend.kind });
+    end({ ...counts, backend: state.backend.kind });
   },
+
+  /* —— okuma: v3 —— */
 
   subscribe(fn) {
     subscribers.add(fn);
@@ -246,6 +276,22 @@ export const store = {
     return state.quotes.slice();
   },
 
+  focusSessions(date = null) {
+    return date ? state.focus.filter((f) => f.date === date) : state.focus.slice();
+  },
+
+  focusMinutesTotal() {
+    return state.focus.reduce((a, f) => a + f.minutes, 0);
+  },
+
+  focusMinutesOn(date) {
+    return state.focus.reduce((a, f) => (f.date === date ? a + f.minutes : a), 0);
+  },
+
+  goals(period, key) {
+    return state.goals.filter((g) => g.period === period && g.periodKey === key);
+  },
+
   /** Konsoldan inceleme için: window.disiplin.store.debugSnapshot() */
   debugSnapshot() {
     return {
@@ -254,6 +300,8 @@ export const store = {
       checks: state.checks.size,
       days: state.days.size,
       quotes: state.quotes.length,
+      focus: state.focus.length,
+      goals: state.goals.length,
       settings: state.settings,
     };
   },
@@ -441,6 +489,123 @@ export const store = {
       state.settings = { ...state.settings, [key]: value };
       log.info('Ayar değişti', { key, value });
       emit('settings', { key });
+    });
+  },
+
+  /* —— odak oturumları (v3) —— */
+
+  addFocusSession(input) {
+    assertReady();
+    return enqueue('addFocusSession', async () => {
+      const rec = { id: uid(), ...V.validateFocusSession(input) };
+      await state.backend.put('focus', rec);
+      state.focus.push(rec);
+      log.info('Odak oturumu kaydedildi', { minutes: rec.minutes, habitId: rec.habitId });
+      emit('focus', { id: rec.id });
+      return rec;
+    });
+  },
+
+  deleteFocusSession(id) {
+    assertReady();
+    return enqueue('deleteFocusSession', async () => {
+      await state.backend.delete('focus', id);
+      state.focus = state.focus.filter((f) => f.id !== id);
+      emit('focus', { id });
+    });
+  },
+
+  /* —— hedefler (v3) —— */
+
+  addGoal(input) {
+    assertReady();
+    return enqueue('addGoal', async () => {
+      const g = { id: uid(), ...V.validateGoal(input), createdAt: Date.now() };
+      await state.backend.put('goals', g);
+      state.goals.push(g);
+      emit('goals', { id: g.id });
+      return g;
+    });
+  },
+
+  updateGoal(id, patch) {
+    assertReady();
+    return enqueue('updateGoal', async () => {
+      const cur = state.goals.find((g) => g.id === id);
+      if (!cur) throw new V.ValidationError('Hedef bulunamadı.');
+      const next = { ...cur, ...V.validateGoal({ ...cur, ...patch }) };
+      await state.backend.put('goals', next);
+      Object.assign(cur, next);
+      emit('goals', { id });
+      return next;
+    });
+  },
+
+  deleteGoal(id) {
+    assertReady();
+    return enqueue('deleteGoal', async () => {
+      await state.backend.delete('goals', id);
+      state.goals = state.goals.filter((g) => g.id !== id);
+      emit('goals', { id });
+    });
+  },
+
+  /* —— iç kayıtlar (hatırlatıcı günlüğü vb.; ekranı yeniden çizdirmez) —— */
+
+  async getMeta(key) {
+    assertReady();
+    try {
+      return (await state.backend.get('meta', key))?.value ?? null;
+    } catch (e) {
+      log.warn('meta okunamadı', { key, e });
+      return null;
+    }
+  },
+
+  setMeta(key, value) {
+    assertReady();
+    return enqueue('setMeta', () => state.backend.put('meta', { key, value }));
+  },
+
+  /* —— yedekleme (v3) —— */
+
+  /** Tüm kullanıcı verisini yedek nesnesi olarak döner (JSON'a hazır). */
+  exportAll() {
+    assertReady();
+    const data = {
+      habits: state.habits,
+      checks: [...state.checks.values()],
+      days: [...state.days.values()],
+      quotes: state.quotes,
+      settings: Object.entries(state.settings).map(([key, value]) => ({ key, value })),
+      focus: state.focus,
+      goals: state.goals,
+    };
+    return makeBackup(structuredClone(data), { version: self.DISIPLIN_VERSION, schema: DB_VERSION });
+  },
+
+  /** Yedeği doğrular; geçerliyse mevcut verinin YERİNE koyar. { counts, skipped } döner. */
+  importAll(backup) {
+    assertReady();
+    return enqueue('importAll', async () => {
+      const { data, skipped, counts } = validateBackup(backup, { today: todayKey(), settingValidators: SETTING_VALIDATORS });
+      await state.backend.replaceAll({ ...data, meta: [] });
+      await loadAll();
+      log.info('İçe aktarıldı', { counts, skipped });
+      emit('import', { counts });
+      return { counts, skipped };
+    });
+  },
+
+  /** Her şeyi siler. */
+  resetAll() {
+    assertReady();
+    return enqueue('resetAll', async () => {
+      const empty = Object.fromEntries(['habits', 'checks', 'days', 'quotes', 'settings', 'focus', 'goals', 'meta'].map((k) => [k, []]));
+      await state.backend.replaceAll(empty);
+      await loadAll();
+      log.warn('Tüm veriler silindi');
+      emit('import', { reset: true });
     });
   },
 };
