@@ -39,7 +39,7 @@ export function makeBackup(data, { version, schema, now = new Date() }) {
  */
 export function validateBackup(obj, { today, settingValidators }) {
   if (!obj || typeof obj !== 'object' || obj.app !== BACKUP_APP || !obj.data || typeof obj.data !== 'object') {
-    throw new ValidationError('Bu dosya bir Disiplin yedeği değil.');
+    throw new ValidationError('Bu dosya bir BOSS yedeği değil.');
   }
   if (obj.format > BACKUP_FORMAT) {
     throw new ValidationError('Bu yedek uygulamanın daha yeni bir sürümüyle alınmış. Önce uygulamayı güncelle.');

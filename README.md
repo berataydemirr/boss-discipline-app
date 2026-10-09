@@ -1,4 +1,6 @@
-# Disiplin
+# BOSS
+
+> Kendi kendinin patronu ol.
 
 Kişisel disiplin uygulaması: alışkanlık takibi, günün sözü, öncelikler, akşam değerlendirmesi,
 odak zamanlayıcısı, haftalık/aylık hedefler ve analiz. Telefona kurulabilen, internetsiz çalışan bir PWA.
@@ -20,14 +22,14 @@ Sunucu yok, hesap yok: **tüm veriler telefonunda** (IndexedDB) durur.
 
 Uygulamanın bir adreste (HTTPS) yayınlanması gerekiyor. En kolayı **GitHub Pages** (ücretsiz):
 
-1. GitHub'da yeni bir depo aç (ör. `disiplin`), bu klasörü oraya gönder:
+1. GitHub'da yeni bir depo aç (ör. `boss-discipline-app`), bu klasörü oraya gönder:
    ```bash
-   git remote add origin https://github.com/KULLANICI_ADIN/disiplin.git
+   git remote add origin https://github.com/KULLANICI_ADIN/boss-discipline-app.git
    git push -u origin main
    ```
 2. Depoda **Settings › Pages › Build and deployment › Source: Deploy from a branch**,
    branch: `main`, klasör: `/ (root)` → Save.
-3. Bir dakika sonra adres hazır: `https://KULLANICI_ADIN.github.io/disiplin/`
+3. Bir dakika sonra adres hazır: `https://KULLANICI_ADIN.github.io/boss-discipline-app/`
 4. Telefonda aç:
    - **iPhone:** Safari ile aç › Paylaş › **Ana Ekrana Ekle**. (Bildirimler için uygulamayı ana ekrandan açmak şart.)
    - **Android:** Chrome ile aç › ⋮ menü › **Uygulamayı yükle**.

@@ -134,7 +134,7 @@ test('yedek: geçerli kayıtlar alınır, bozuklar atlanır ve sayılır', () =>
 });
 
 test('yedek: yanlış dosya reddedilir', () => {
-  assert.throws(() => validateBackup({ hello: 1 }, ctx), /Disiplin yedeği değil/);
+  assert.throws(() => validateBackup({ hello: 1 }, ctx), /BOSS yedeği değil/);
   assert.throws(() => validateBackup(null, ctx), ValidationError);
   assert.throws(() => validateBackup({ app: 'disiplin', format: 99, data: {} }, ctx), /daha yeni/);
   assert.throws(() => validateBackup({ app: 'disiplin', format: 1, data: { habits: 'x' } }, ctx), /bozuk/);

@@ -63,7 +63,7 @@ export function render({ onCleanup }) {
     snap = s;
     time.textContent = fmt(s.remainingMs);
     arc.setAttribute('stroke-dashoffset', (CIRC * (1 - Math.min(1, Math.max(0, s.progress)))).toFixed(1));
-    document.title = s.status === 'running' ? `${fmt(s.remainingMs)} · ${focus.MODES[s.mode].label}` : 'Disiplin';
+    document.title = s.status === 'running' ? `${fmt(s.remainingMs)} · ${focus.MODES[s.mode].label}` : 'BOSS';
 
     sub.textContent =
       s.status === 'running'
@@ -156,7 +156,7 @@ export function render({ onCleanup }) {
   const unsubscribe = focus.subscribe(paint);
   onCleanup(() => {
     unsubscribe();
-    document.title = 'Disiplin';
+    document.title = 'BOSS';
   });
   return wrap;
 }

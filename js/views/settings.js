@@ -29,7 +29,7 @@ export function render({ params }) {
   return h(
     'div',
     { class: 'page settings' },
-    h('header', { class: 'page-head' }, h('p', { class: 'eyebrow' }, 'Disiplin'), h('h1', { class: 'display' }, 'Ayarlar')),
+    h('header', { class: 'page-head' }, h('p', { class: 'eyebrow' }, 'BOSS'), h('h1', { class: 'display' }, 'Ayarlar')),
 
     group(
       'Görünüm',
@@ -103,7 +103,7 @@ export function render({ params }) {
     h(
       'footer',
       { class: 'about' },
-      h('p', { class: 'serif about-name' }, 'Disiplin'),
+      h('p', { class: 'serif about-name' }, 'BOSS'),
       h('p', { class: 'faint small num' }, `Sürüm ${self.DISIPLIN_VERSION}`),
     ),
   );
@@ -174,9 +174,9 @@ function remindersGroup() {
         try {
           if (reminders.permission() === 'granted') {
             const reg = await navigator.serviceWorker.ready;
-            await reg.showNotification('Disiplin', { body: 'Hatırlatıcılar çalışıyor.', icon: './icons/icon-192.png', tag: 'disiplin-test' });
+            await reg.showNotification('BOSS', { body: 'Hatırlatıcılar çalışıyor.', icon: './icons/icon-192.png', tag: 'disiplin-test' });
           } else {
-            toast('Disiplin — Hatırlatıcılar çalışıyor (uygulama içi).');
+            toast('BOSS — Hatırlatıcılar çalışıyor (uygulama içi).');
           }
         } catch (e) {
           showError(e, 'Bildirim gösterilemedi.');
@@ -466,7 +466,7 @@ function openLogs() {
             {
               class: 'btn btn-ghost btn-sm',
               onclick: async () => {
-                const report = `Disiplin ${self.DISIPLIN_VERSION}\n${navigator.userAgent}\n\n${formatLogs()}`;
+                const report = `BOSS ${self.DISIPLIN_VERSION}\n${navigator.userAgent}\n\n${formatLogs()}`;
                 toast((await copyText(report)) ? 'Kayıtlar kopyalandı' : 'Kopyalanamadı');
               },
             },

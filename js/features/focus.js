@@ -179,7 +179,7 @@ async function notify(mode) {
   if (document.visibilityState !== 'visible' && 'Notification' in window && Notification.permission === 'granted') {
     try {
       const reg = await navigator.serviceWorker.ready;
-      await reg.showNotification('Disiplin', { body: msg, tag: 'disiplin-focus', icon: './icons/icon-192.png', data: { url: './#/focus' } });
+      await reg.showNotification('BOSS', { body: msg, tag: 'disiplin-focus', icon: './icons/icon-192.png', data: { url: './#/focus' } });
       return;
     } catch (e) {
       log.warn('Bildirim gösterilemedi', e);

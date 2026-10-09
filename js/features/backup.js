@@ -13,13 +13,13 @@ const log = createLogger('backup');
 export async function exportToFile() {
   const backup = store.exportAll();
   const json = JSON.stringify(backup, null, 2);
-  const name = `disiplin-yedek-${todayKey()}.json`;
+  const name = `boss-yedek-${todayKey()}.json`;
   const file = new File([json], name, { type: 'application/json' });
 
   // Telefonda paylaşım menüsü (Dosyalar'a kaydet, Drive, e-posta…) daha kullanışlı.
   if (navigator.canShare?.({ files: [file] })) {
     try {
-      await navigator.share({ files: [file], title: 'Disiplin yedeği' });
+      await navigator.share({ files: [file], title: 'BOSS yedeği' });
       await store.setSetting('lastExportAt', Date.now());
       log.info('Yedek paylaşıldı', backup.counts);
       return 'shared';
