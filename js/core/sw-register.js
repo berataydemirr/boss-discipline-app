@@ -26,11 +26,20 @@ export async function registerServiceWorker() {
     const reg = await navigator.serviceWorker.register('./sw.js');
     log.info('Service worker registered', { scope: reg.scope });
 
+    // Reload only when the user accepted an update. On the very first install the new worker
+    // also takes control (clients.claim), and reloading then would needlessly flash the page.
+    let updateAccepted = false;
     const promptUpdate = (worker) => {
       log.info('New version waiting');
       toast('Update available.', {
         duration: 15000,
-        action: { label: 'Reload', fn: () => worker.postMessage({ type: 'SKIP_WAITING' }) },
+        action: {
+          label: 'Reload',
+          fn: () => {
+            updateAccepted = true;
+            worker.postMessage({ type: 'SKIP_WAITING' });
+          },
+        },
       });
     };
 
@@ -48,6 +57,10 @@ export async function registerServiceWorker() {
 
     let reloaded = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!updateAccepted) {
+        log.info('Service worker now controls the page');
+        return;
+      }
       if (reloaded) return;
       reloaded = true;
       log.info('New version active, reloading');

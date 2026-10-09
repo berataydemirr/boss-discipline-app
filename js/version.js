@@ -3,4 +3,4 @@
  * service worker (importScripts). Bump it on every release: the cache is
  * refreshed and installed apps show an "Update available" prompt.
  */
-self.BOSS_VERSION = '4.0.0';
+self.BOSS_VERSION = '4.0.1';
