@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="tr" data-theme="dark" data-accent="ember">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Disiplin</title>
+    <meta name="description" content="Kişisel disiplin ve alışkanlık takibi" />
+    <meta name="theme-color" content="#11100e" />
+    <meta name="color-scheme" content="dark light" />
+
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Disiplin" />
+
+    <script>
+      // Tema flaşını önle: CSS'ten önce kayıtlı temayı uygula.
+      (function () {
+        try {
+          var t = localStorage.getItem('disiplin:theme') || 'system';
+          var a = localStorage.getItem('disiplin:accent') || 'ember';
+          if (t === 'system') t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+          document.documentElement.dataset.theme = t;
+          document.documentElement.dataset.accent = a;
+        } catch (e) {}
+      })();
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap"
+    />
+    <link rel="stylesheet" href="./css/tokens.css" />
+    <link rel="stylesheet" href="./css/base.css" />
+    <link rel="stylesheet" href="./css/components.css" />
+    <link rel="stylesheet" href="./css/views.css" />
+
+    <script src="./js/version.js"></script>
+    <script type="module" src="./js/main.js"></script>
+  </head>
+  <body>
+    <div class="app">
+      <main id="view" class="view" tabindex="-1">
+        <div class="boot" aria-hidden="true"></div>
+      </main>
+      <nav id="tabbar" class="tabbar" aria-label="Ana menü"></nav>
+    </div>
+    <div id="sheet-root"></div>
+    <div id="toast-root" aria-live="polite"></div>
+    <noscript>
+      <p style="padding: 24px; font-family: system-ui">Disiplin çalışmak için JavaScript'e ihtiyaç duyar.</p>
+    </noscript>
+  </body>
+</html>
