@@ -1,6 +1,6 @@
 /*
- * Tek sürüm kaynağı. Hem sayfa (<script>) hem service worker (importScripts) okur.
- * Kodda değişiklik yapıp yayınladığında bu sayıyı artır: önbellek yenilenir,
- * telefondaki uygulama "Yeni sürüm hazır" bildirimi gösterir.
+ * Single source of the app version, read by both the page (<script>) and the
+ * service worker (importScripts). Bump it on every release: the cache is
+ * refreshed and installed apps show an "Update available" prompt.
  */
-self.DISIPLIN_VERSION = '3.0.1';
+self.BOSS_VERSION = '4.0.0';

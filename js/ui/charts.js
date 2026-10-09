@@ -1,20 +1,20 @@
 /**
- * Elle yazılmış, bağımlılıksız küçük grafikler.
+ * Small, hand-written, dependency-free charts.
  *
- * Kurallar (dataviz rehberi):
- * - Büyüklük = tek ton (vurgu rengi), açıktan koyuya; gökkuşağı yok.
- * - İnce işaretler: sütunlar ≤ 24px, üstte 4px yuvarlak, tabanda düz; çizgi 2px.
- * - Izgara/eksen silik ve tek piksel; metin her zaman metin renginde, veri renginde değil.
- * - Her işaretin üzerine gelince/dokununca değer gösteren bir ipucu (tooltip) vardır.
+ * Rules (dataviz guide):
+ * - Magnitude = a single hue (the accent), light to dark; never a rainbow.
+ * - Thin marks: columns ≤ 24px, 4px rounded top, square at the baseline; lines 2px.
+ * - Grid/axes are faint and 1px; text always uses text colors, never the data color.
+ * - Every mark shows its value in a tooltip on hover/tap.
  */
 import { h } from './dom.js';
 import { addDays, startOfWeek, formatShort, formatLong, MONTHS_SHORT, WEEKDAYS_MIN } from '../core/dates.js';
 
-/* ───────────────────────── ipucu ───────────────────────── */
+/* ───────────────────────── tooltip ───────────────────────── */
 
 /**
- * Kapsayıcıya bağlı tek bir ipucu. Fareyle üzerine gelince ve dokununca çalışır.
- * Hedef öğelerde data-tip="metin" bulunmalı.
+ * A single tooltip bound to a container. Works on mouse hover and on tap.
+ * Target elements must have data-tip="text".
  */
 function withTooltip(container) {
   const tip = h('div', { class: 'chart-tip', role: 'status', 'aria-live': 'polite' });
@@ -50,8 +50,8 @@ function withTooltip(container) {
   container.addEventListener('pointerleave', (e) => {
     if (e.pointerType === 'mouse') hide();
   });
-  // Dokunmatikte: işarete dokun → göster; boş yere dokun → gizle.
-  // (Aç/kapa yapılmaz: farede üzerine gelince zaten açık olduğundan tıklama onu kapatırdı.)
+  // Touch: tap a mark → show; tap empty space → hide.
+  // (No toggling: with a mouse the tooltip is already open from hover, so a click would close it.)
   container.addEventListener('click', (e) => {
     const t = find(e);
     if (t && container.contains(t)) show(t);
@@ -60,9 +60,9 @@ function withTooltip(container) {
   return { hide };
 }
 
-/* ───────────────────────── ısı haritası ───────────────────────── */
+/* ───────────────────────── heatmap ───────────────────────── */
 
-/** Oranı 0–4 arası yoğunluk seviyesine çevirir. null → plan yok. */
+/** Maps a ratio to an intensity level 0–4. null → nothing planned. */
 export function heatLevel(ratio) {
   if (ratio == null) return -1;
   if (ratio <= 0) return 0;
@@ -73,12 +73,12 @@ export function heatLevel(ratio) {
 }
 
 /**
- * GitHub tarzı yıllık takvim. Haftalar sütun, günler satır (Pzt üstte).
- * @param {{key:string, done:number, total:number, ratio:number|null}[]} series kronolojik
- * @param {{color?:string, label?:(d)=>string}} opts color: tek alışkanlık için ton
+ * GitHub-style calendar. Weeks are columns, days are rows (Monday on top).
+ * @param {{key:string, done:number, total:number, ratio:number|null}[]} series chronological
+ * @param {{color?:string, label?:(d)=>string}} opts color: hue for a single habit
  */
 export function heatmap(series, { color, label } = {}) {
-  if (!series.length) return h('p', { class: 'muted small' }, 'Veri yok.');
+  if (!series.length) return h('p', { class: 'muted small' }, 'No data.');
   const first = startOfWeek(series[0].key);
   const byKey = new Map(series.map((d) => [d.key, d]));
   const last = series[series.length - 1].key;
@@ -88,7 +88,7 @@ export function heatmap(series, { color, label } = {}) {
   let lastMonth = null;
   let lastLabelAt = -9;
   for (let weekStart = first, w = 0; weekStart <= last; weekStart = addDays(weekStart, 7), w++) {
-    // Ay etiketi, ayın ilk haftasında; komşu etikete çok yakınsa (3 sütundan az) atlanır, üst üste binmez.
+    // Month label on the month's first week; skipped when too close (< 3 columns) to the previous one.
     const m = addDays(weekStart, 6).slice(5, 7);
     if (m !== lastMonth && w - lastLabelAt >= 3) {
       months.push(MONTHS_SHORT[+m - 1]);
@@ -106,7 +106,7 @@ export function heatmap(series, { color, label } = {}) {
         continue;
       }
       const lvl = heatLevel(item.ratio);
-      const text = label ? label(item) : item.total ? `${formatLong(key)} · ${item.done}/${item.total}` : `${formatLong(key)} · plan yok`;
+      const text = label ? label(item) : item.total ? `${formatLong(key)} · ${item.done}/${item.total}` : `${formatLong(key)} · nothing planned`;
       cells.push(h('i', { class: `hm-cell hm-${lvl < 0 ? 'empty' : lvl}`, 'data-tip': text, 'aria-label': text, role: 'img' }));
     }
     cols.push(h('div', { class: 'hm-col' }, cells));
@@ -130,25 +130,25 @@ export function heatmap(series, { color, label } = {}) {
     h(
       'div',
       { class: 'hm-legend', 'aria-hidden': 'true' },
-      h('span', null, 'Az'),
+      h('span', null, 'Less'),
       [0, 1, 2, 3, 4].map((l) => h('i', { class: `hm-cell hm-${l}` })),
-      h('span', null, 'Tam'),
+      h('span', null, 'All'),
     ),
   );
   withTooltip(wrap);
-  // En yeni hafta görünsün.
+  // Show the most recent week.
   requestAnimationFrame(() => {
     grid.scrollLeft = grid.scrollWidth;
   });
   return wrap;
 }
 
-/* ───────────────────────── sütun grafiği ───────────────────────── */
+/* ───────────────────────── columns ───────────────────────── */
 
 /**
- * Tek seriyi gösteren dikey sütunlar (0–100%).
+ * Vertical columns for a single series (0–100%).
  * @param {{label:string, value:number|null, tip:string, highlight?:boolean}[]} items value: 0..1
- * @param {{valueLabel?:(item)=>string}} opts son/öne çıkan sütunun üstüne yazılacak etiket
+ * @param {{valueLabel?:(item)=>string, scale?:[string,string]}} opts label drawn above the highlighted column
  */
 export function columns(items, { valueLabel, scale = ['100', '50'] } = {}) {
   const bars = items.map((it) =>
@@ -180,11 +180,11 @@ export function columns(items, { valueLabel, scale = ['100', '50'] } = {}) {
   return wrap;
 }
 
-/* ───────────────────────── çizgi (trend) ───────────────────────── */
+/* ───────────────────────── trend line ───────────────────────── */
 
 /**
- * Günlük değer çizgisi (ör. gün puanı 1–10). Eksik günlerde çizgi kesilir.
- * @param {{key:string, value:number|null}[]} points kronolojik, her gün bir öğe
+ * Daily value line (e.g. day score 1–10). The line breaks on missing days.
+ * @param {{key:string, value:number|null}[]} points chronological, one per day
  */
 export function trendLine(points, { min = 1, max = 10, format = (v) => String(v) } = {}) {
   const W = 320;
@@ -195,7 +195,7 @@ export function trendLine(points, { min = 1, max = 10, format = (v) => String(v)
   const x = (i) => (n === 1 ? W / 2 : (i / (n - 1)) * (W - 12) + 6);
   const y = (v) => PAD_T + (1 - (v - min) / (max - min)) * (H - PAD_T - PAD_B);
 
-  // Kesintili yol: değeri olmayan günde yeni parça başlat.
+  // Broken path: start a new segment after a day without a value.
   let d = '';
   let pen = false;
   points.forEach((p, i) => {
@@ -217,7 +217,7 @@ export function trendLine(points, { min = 1, max = 10, format = (v) => String(v)
     h('path', { class: 'tr-line', d: d.trim() }),
   );
 
-  // Noktalar ve dokunma alanları HTML'de (SVG ölçeklenince daire bozulmasın).
+  // Dots and hit areas live in HTML so circles don't distort when the SVG stretches.
   const dots = h('div', { class: 'tr-dots' });
   points.forEach((p, i) => {
     if (p.value == null) return;
@@ -231,9 +231,7 @@ export function trendLine(points, { min = 1, max = 10, format = (v) => String(v)
   const hits = h(
     'div',
     { class: 'tr-hits' },
-    points.map((p) =>
-      h('i', { class: 'tr-hit', 'data-tip': `${formatShort(p.key)} · ${p.value == null ? 'kayıt yok' : format(p.value)}` }),
-    ),
+    points.map((p) => h('i', { class: 'tr-hit', 'data-tip': `${formatShort(p.key)} · ${p.value == null ? 'no entry' : format(p.value)}` })),
   );
   const wrap = h(
     'div',
@@ -245,9 +243,9 @@ export function trendLine(points, { min = 1, max = 10, format = (v) => String(v)
   return wrap;
 }
 
-/* ───────────────────────── küçükler ───────────────────────── */
+/* ───────────────────────── small pieces ───────────────────────── */
 
-/** Tek sayı kutusu — grafik gerektirmeyen başlık değerler için. */
+/** A single number tile — for headline values that don't need a chart. */
 export function statTile(label, value, sub) {
   return h(
     'div',
@@ -258,7 +256,7 @@ export function statTile(label, value, sub) {
   );
 }
 
-/** Yatay ince ilerleme çubuğu (0..1). */
+/** Thin horizontal progress bar (0..1). */
 export function meter(value, { color } = {}) {
   const pct = value == null ? 0 : Math.round(Math.max(0, Math.min(1, value)) * 100);
   return h(
@@ -268,4 +266,4 @@ export function meter(value, { color } = {}) {
   );
 }
 
-export const pct = (v) => (v == null ? '—' : `%${Math.round(v * 100)}`);
+export const pct = (v) => (v == null ? '—' : `${Math.round(v * 100)}%`);

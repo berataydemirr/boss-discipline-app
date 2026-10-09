@@ -1,5 +1,5 @@
 /**
- * Akşam değerlendirmesi paneli: gün puanı, ruh hali, enerji, iki kısa soru.
+ * Evening review sheet: day score, mood, energy and two short prompts.
  */
 import { h, autosize } from './dom.js';
 import { openSheet, confirmDialog } from './sheet.js';
@@ -7,10 +7,10 @@ import { toast, showError } from './toast.js';
 import { store } from '../core/store.js';
 import { formatLong } from '../core/dates.js';
 
-export const MOOD_LABELS = ['Çok kötü', 'Kötü', 'Orta', 'İyi', 'Çok iyi'];
-export const ENERGY_LABELS = ['Bitkin', 'Düşük', 'Orta', 'Yüksek', 'Dolu'];
+export const MOOD_LABELS = ['Awful', 'Low', 'Okay', 'Good', 'Great'];
+export const ENERGY_LABELS = ['Drained', 'Low', 'Okay', 'High', 'Full'];
 
-/** 1..n arası tek seçimli düğme dizisi. */
+/** Single-choice button row from 1..n. */
 function scalePicker({ n, value, onChange, labels, name }) {
   const buttons = Array.from({ length: n }, (_, i) =>
     h(
@@ -21,7 +21,7 @@ function scalePicker({ n, value, onChange, labels, name }) {
         'aria-pressed': String(value === i + 1),
         'aria-label': `${name}: ${i + 1}${labels ? ` (${labels[i]})` : ''}`,
         onclick: () => {
-          const next = value === i + 1 ? null : i + 1; // aynı değere tekrar dokunmak seçimi kaldırır
+          const next = value === i + 1 ? null : i + 1; // tapping the same value again clears it
           value = next;
           buttons.forEach((b, j) => b.setAttribute('aria-pressed', String(next === j + 1)));
           caption.textContent = next && labels ? labels[next - 1] : '';
@@ -46,7 +46,7 @@ export function openReviewForm(date) {
   };
 
   return openSheet({
-    title: 'Akşam değerlendirmesi',
+    title: 'Evening review',
     build: ({ close }) => {
       const textarea = (key, placeholder) => {
         const ta = h('textarea', {
@@ -68,18 +68,18 @@ export function openReviewForm(date) {
         e.preventDefault();
         try {
           await store.updateDay(date, { review: draft });
-          toast('Değerlendirme kaydedildi');
+          toast('Review saved');
           await close();
         } catch (err) {
-          showError(err, 'Kaydedilemedi.');
+          showError(err, 'Could not save.');
         }
       }
 
       async function remove() {
-        if (!(await confirmDialog({ title: 'Değerlendirme silinsin mi?', confirmLabel: 'Sil', danger: true }))) return;
+        if (!(await confirmDialog({ title: 'Delete this review?', confirmLabel: 'Delete', danger: true }))) return;
         try {
           await store.updateDay(date, { review: null });
-          toast('Silindi');
+          toast('Deleted');
           await close();
         } catch (err) {
           showError(err);
@@ -93,8 +93,8 @@ export function openReviewForm(date) {
         h(
           'div',
           { class: 'field' },
-          h('span', { class: 'field-label' }, 'Bugüne kaç verirsin?'),
-          scalePicker({ n: 10, value: draft.score, name: 'Gün puanı', onChange: (v) => (draft.score = v) }),
+          h('span', { class: 'field-label' }, 'How would you rate today?'),
+          scalePicker({ n: 10, value: draft.score, name: 'Day score', onChange: (v) => (draft.score = v) }),
         ),
         h(
           'div',
@@ -102,20 +102,20 @@ export function openReviewForm(date) {
           h(
             'div',
             { class: 'field' },
-            h('span', { class: 'field-label' }, 'Ruh hali'),
-            scalePicker({ n: 5, value: draft.mood, labels: MOOD_LABELS, name: 'Ruh hali', onChange: (v) => (draft.mood = v) }),
+            h('span', { class: 'field-label' }, 'Mood'),
+            scalePicker({ n: 5, value: draft.mood, labels: MOOD_LABELS, name: 'Mood', onChange: (v) => (draft.mood = v) }),
           ),
           h(
             'div',
             { class: 'field' },
-            h('span', { class: 'field-label' }, 'Enerji'),
-            scalePicker({ n: 5, value: draft.energy, labels: ENERGY_LABELS, name: 'Enerji', onChange: (v) => (draft.energy = v) }),
+            h('span', { class: 'field-label' }, 'Energy'),
+            scalePicker({ n: 5, value: draft.energy, labels: ENERGY_LABELS, name: 'Energy', onChange: (v) => (draft.energy = v) }),
           ),
         ),
-        h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Neyi iyi yaptım?'), textarea('good', 'Bir şey yeter.')),
-        h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Yarın neyi daha iyi yapacağım?'), textarea('improve', 'Somut ve küçük olsun.')),
-        h('button', { class: 'btn btn-primary btn-block', type: 'submit' }, 'Kaydet'),
-        existing && h('div', { class: 'form-danger' }, h('button', { type: 'button', class: 'btn btn-quiet text-danger', onclick: remove }, 'Değerlendirmeyi sil')),
+        h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'What went well?'), textarea('good', 'One thing is enough.')),
+        h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'What will you do better tomorrow?'), textarea('improve', 'Keep it small and concrete.')),
+        h('button', { class: 'btn btn-primary btn-block', type: 'submit' }, 'Save'),
+        existing && h('div', { class: 'form-danger' }, h('button', { type: 'button', class: 'btn btn-quiet text-danger', onclick: remove }, 'Delete review')),
       );
     },
   });

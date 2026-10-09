@@ -1,5 +1,5 @@
 /**
- * Günlük: geçmiş notların listesi, aya göre gruplu, aranabilir.
+ * Journal: past entries grouped by month, searchable.
  */
 import { h } from '../ui/dom.js';
 import { icon } from '../ui/icons.js';
@@ -11,7 +11,7 @@ import { MOOD_LABELS } from '../ui/review-form.js';
 let query = '';
 
 function normalize(s) {
-  return s.toLocaleLowerCase('tr-TR');
+  return s.toLocaleLowerCase();
 }
 
 function searchable(d) {
@@ -46,7 +46,7 @@ export function render() {
             h(
               'p',
               { class: 'muted pad-y' },
-              q ? `“${query.trim()}” için sonuç yok.` : 'Henüz kayıt yok. Bugün ekranındaki notların, önceliklerin ve akşam değerlendirmelerin burada birikir.',
+              q ? `No results for “${query.trim()}”.` : 'Nothing here yet. Your notes, priorities and evening reviews from the Today screen collect here.',
             ),
           ]),
     );
@@ -74,7 +74,7 @@ export function render() {
               { class: 'ji-tags' },
               d.review && h('span', { class: 'ji-score num' }, `${d.review.score}/10`),
               d.review?.mood && h('span', null, MOOD_LABELS[d.review.mood - 1]),
-              d.priorities?.length > 0 && h('span', null, `${d.priorities.filter((p) => p.done).length}/${d.priorities.length} öncelik`),
+              d.priorities?.length > 0 && h('span', null, `${d.priorities.filter((p) => p.done).length}/${d.priorities.length} priorities`),
             ),
           d.note?.trim() && h('span', { class: 'ji-note' }, d.note.trim()),
           !d.note?.trim() && d.review?.good && h('span', { class: 'ji-note' }, d.review.good),
@@ -88,7 +88,7 @@ export function render() {
   return h(
     'div',
     { class: 'page' },
-    h('header', { class: 'page-head' }, h('p', { class: 'eyebrow' }, `${all.length} kayıt`), h('h1', { class: 'display' }, 'Günlük')),
+    h('header', { class: 'page-head' }, h('p', { class: 'eyebrow' }, `${all.length} ${all.length === 1 ? 'entry' : 'entries'}`), h('h1', { class: 'display' }, 'Journal')),
     all.length > 0 &&
       h(
         'label',
@@ -97,7 +97,7 @@ export function render() {
         h('input', {
           type: 'search',
           class: 'search-input',
-          placeholder: 'Notlarda ara',
+          placeholder: 'Search entries',
           value: query,
           'data-fk': 'journal-search',
           oninput: (e) => {

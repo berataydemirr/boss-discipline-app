@@ -1,9 +1,9 @@
 /**
- * Yedek dosyası biçimi ve doğrulaması. SAF modül.
+ * Backup file format and validation. PURE module.
  *
- * İçe aktarma "ya hep ya hiç" çalışır: dosya tanınmazsa hiçbir şey değişmez.
- * Tek tek bozuk kayıtlar (ör. elle düzenlenmiş dosyada geçersiz tarih) atlanır ve sayılır;
- * kullanıcıya kaç kaydın atlandığı söylenir.
+ * Import is all-or-nothing at the file level: an unrecognized file changes nothing.
+ * Individual broken records (e.g. an invalid date in a hand-edited file) are skipped
+ * and counted, and the user is told how many were skipped.
  */
 import { isValidKey } from '../core/dates.js';
 import {
@@ -17,7 +17,7 @@ import {
   cleanMultiline,
 } from '../core/validate.js';
 
-export const BACKUP_APP = 'disiplin';
+export const BACKUP_APP = 'boss';
 export const BACKUP_FORMAT = 1;
 
 export function makeBackup(data, { version, schema, now = new Date() }) {
@@ -33,26 +33,26 @@ export function makeBackup(data, { version, schema, now = new Date() }) {
 }
 
 /**
- * @param {unknown} obj JSON.parse sonucu
+ * @param {unknown} obj result of JSON.parse
  * @param {{today:string, settingValidators:Record<string,(v)=>boolean>}} ctx
  * @returns {{data:Record<string, object[]>, skipped:number, counts:Record<string,number>}}
  */
 export function validateBackup(obj, { today, settingValidators }) {
   if (!obj || typeof obj !== 'object' || obj.app !== BACKUP_APP || !obj.data || typeof obj.data !== 'object') {
-    throw new ValidationError('Bu dosya bir BOSS yedeği değil.');
+    throw new ValidationError('This file is not a BOSS backup.');
   }
   if (obj.format > BACKUP_FORMAT) {
-    throw new ValidationError('Bu yedek uygulamanın daha yeni bir sürümüyle alınmış. Önce uygulamayı güncelle.');
+    throw new ValidationError('This backup was made with a newer version of the app. Update the app first.');
   }
   const src = obj.data;
   let skipped = 0;
 
   const list = (name) => {
     const v = src[name] ?? [];
-    if (!Array.isArray(v)) throw new ValidationError(`Yedekte "${name}" bölümü bozuk.`);
+    if (!Array.isArray(v)) throw new ValidationError(`The "${name}" section of the backup is corrupted.`);
     return v;
   };
-  /** Her kaydı dönüştür; hata verenleri atla. */
+  /** Transform each record; skip the ones that fail. */
   const each = (name, fn) => {
     const out = [];
     for (const item of list(name)) {
@@ -96,7 +96,7 @@ export function validateBackup(obj, { today, settingValidators }) {
     try {
       review = validateReview(d.review ?? null);
     } catch {
-      skipped++; // gün kalır, yalnızca bozuk değerlendirme atılır
+      skipped++; // keep the day, drop only the broken review
     }
     const rec = {
       date: d.date,

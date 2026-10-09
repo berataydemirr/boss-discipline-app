@@ -1,22 +1,22 @@
 /**
- * Puan, seviye ve rozetler. SAF modül.
- * Puan saklanmaz; her seferinde verinin kendisinden hesaplanır. Böylece bir işareti
- * geri almak puanı da geri alır ve hile/tutarsızlık oluşmaz.
+ * Points, levels and badges. PURE module.
+ * Points are never stored; they are always derived from the data, so undoing a
+ * check-in also undoes its points and nothing can drift out of sync.
  */
 
 export const POINTS = {
-  check: 10, // yapılan her alışkanlık
-  perfectDay: 5, // planlı her şeyin yapıldığı gün
-  review: 3, // akşam değerlendirmesi
-  cleanDay: 2, // bırakılacak alışkanlıkta temiz geçen her gün
-  focus10: 1, // her 10 dakikalık odak
+  check: 10, // each completed habit
+  perfectDay: 5, // a day where everything scheduled was done
+  review: 3, // evening review
+  cleanDay: 2, // each clean day for a quit habit
+  focus10: 1, // every 10 minutes of focus
 };
 
-export const LEVEL_TITLES = ['Başlangıç', 'Çırak', 'Kararlı', 'İstikrarlı', 'Azimli', 'Disiplinli', 'Usta', 'Bilge', 'Stoacı'];
+export const LEVEL_TITLES = ['Rookie', 'Apprentice', 'Committed', 'Consistent', 'Relentless', 'Disciplined', 'Master', 'Stoic', 'Boss'];
 
 /**
- * L seviyesine ulaşmak için gereken toplam puan: 0, 300, 750, 1350, 2100 …
- * Her gün 4–5 alışkanlık yapan biri ~2. ayda "Azimli", ~8. ayda "Stoacı" olur.
+ * Total points needed to reach level L: 0, 300, 750, 1350, 2100 …
+ * Someone doing 4–5 habits a day is "Relentless" by month ~2 and "Boss" by month ~8.
  */
 export function pointsForLevel(level) {
   return 75 * (level - 1) * (level + 2);
@@ -48,22 +48,22 @@ export function levelFor(points) {
 }
 
 /**
- * Rozetler. `value(ctx)` ilerlemeyi, `target` hedefi verir.
+ * Badges. `value(ctx)` gives progress, `target` the goal.
  * ctx: { checks, bestStreak, perfectDays, perfectRun, reviews, notes, quitBest, focusMinutes }
  */
 export const BADGES = [
-  { id: 'ilk-adim', title: 'İlk adım', desc: 'İlk alışkanlığını işaretle', target: 1, value: (c) => c.checks },
-  { id: 'seri-7', title: 'Bir hafta', desc: '7 günlük seri', target: 7, value: (c) => c.bestStreak },
-  { id: 'seri-30', title: 'Bir ay', desc: '30 günlük seri', target: 30, value: (c) => c.bestStreak },
-  { id: 'seri-100', title: 'Yüz gün', desc: '100 günlük seri', target: 100, value: (c) => c.bestStreak },
-  { id: 'tam-gun-10', title: 'Tam on', desc: '10 tam gün', target: 10, value: (c) => c.perfectDays },
-  { id: 'tam-hafta', title: 'Kusursuz hafta', desc: '7 gün üst üste tam gün', target: 7, value: (c) => c.perfectRun },
-  { id: 'yuz-tik', title: 'Yüz tik', desc: '100 kez işaretle', target: 100, value: (c) => c.checks },
-  { id: 'bin-tik', title: 'Bin tik', desc: '1000 kez işaretle', target: 1000, value: (c) => c.checks },
-  { id: 'temiz-30', title: 'Temiz ay', desc: 'Bıraktığın bir şeyden 30 gün uzak dur', target: 30, value: (c) => c.quitBest },
-  { id: 'yansima-10', title: 'Aynaya bak', desc: '10 akşam değerlendirmesi', target: 10, value: (c) => c.reviews },
-  { id: 'kalem-30', title: 'Kalem', desc: '30 günlük not', target: 30, value: (c) => c.notes },
-  { id: 'odak-10', title: 'Derin iş', desc: '10 saat odak', target: 600, value: (c) => c.focusMinutes ?? 0 },
+  { id: 'first-step', title: 'First step', desc: 'Check off your first habit', target: 1, value: (c) => c.checks },
+  { id: 'streak-7', title: 'One week', desc: '7-day streak', target: 7, value: (c) => c.bestStreak },
+  { id: 'streak-30', title: 'One month', desc: '30-day streak', target: 30, value: (c) => c.bestStreak },
+  { id: 'streak-100', title: 'Hundred days', desc: '100-day streak', target: 100, value: (c) => c.bestStreak },
+  { id: 'perfect-10', title: 'Perfect ten', desc: '10 perfect days', target: 10, value: (c) => c.perfectDays },
+  { id: 'perfect-week', title: 'Flawless week', desc: '7 perfect days in a row', target: 7, value: (c) => c.perfectRun },
+  { id: 'checks-100', title: 'Hundred', desc: 'Check off 100 times', target: 100, value: (c) => c.checks },
+  { id: 'checks-1000', title: 'Thousand', desc: 'Check off 1000 times', target: 1000, value: (c) => c.checks },
+  { id: 'clean-30', title: 'Clean month', desc: '30 days free of something you quit', target: 30, value: (c) => c.quitBest },
+  { id: 'reviews-10', title: 'Mirror', desc: '10 evening reviews', target: 10, value: (c) => c.reviews },
+  { id: 'notes-30', title: 'Pen', desc: '30 days of notes', target: 30, value: (c) => c.notes },
+  { id: 'focus-10h', title: 'Deep work', desc: '10 hours of focus', target: 600, value: (c) => c.focusMinutes ?? 0 },
 ];
 
 export function evaluateBadges(ctx) {

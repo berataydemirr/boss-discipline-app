@@ -1,7 +1,8 @@
 /**
- * Bugün ekranı: tarih, hafta şeridi, günün sözü, alışkanlıklar, günlük not.
- * #/today            → bugün
- * #/today/2026-10-08 → geçmiş bir gün (doldurmayı unuttuğun günler için)
+ * Today screen: date, week strip, quote of the day, priorities, habits, quit habits,
+ * evening review and note.
+ * #/today            → today
+ * #/today/2026-10-08 → a past day (for days you forgot to fill in)
  */
 import { h, autosize, vibrate, copyText } from '../ui/dom.js';
 import { icon } from '../ui/icons.js';
@@ -30,22 +31,22 @@ import { pickForDate, quotePool } from '../logic/quotes.js';
 
 const log = createLogger('today');
 
-/** Son işaretlenen (animasyon için) — `${habitId}|${date}` */
+/** Last toggled check (for the animation) — `${habitId}|${date}` */
 let lastToggled = null;
-/** Henüz kaydedilmemiş not taslakları: yeniden çizimde yazılan metin kaybolmasın. */
+/** Unsaved note drafts, so text being typed survives a re-render. */
 const noteDrafts = new Map();
-/** "Plan dışı" bölümü açık mı — yeniden çizimde kapanmasın. */
+/** Whether the "Not planned" section is open — keeps it open across re-renders. */
 let offPlanOpen = false;
-/** Öncelik slotları (tarih → 3 slot): yazarken yeniden çizimde boş slotlar kaymasın. */
+/** Priority slots (date → 3 slots), so empty slots don't shift while typing. */
 const prioDrafts = new Map();
 
-/** İçe aktarma gibi toplu değişikliklerden sonra çağrılır. */
+/** Called after bulk changes such as an import. */
 export function resetTodayDrafts() {
   noteDrafts.clear();
   prioDrafts.clear();
 }
 
-const SUGGESTIONS = ['Spor', '20 sayfa kitap', 'Erken kalk', '2 litre su', 'Meditasyon', 'İngilizce çalış'];
+const SUGGESTIONS = ['Workout', 'Read 20 pages', 'Wake up early', 'Drink 2L of water', 'Meditate', 'Study a language'];
 
 const dayHref = (key, today) => (key === today ? 'today' : `today/${key}`);
 
@@ -53,7 +54,7 @@ export function render({ params, onCleanup }) {
   const today = todayKey();
   let date = params[0] ?? today;
   if (!isValidKey(date) || date > today) {
-    log.warn('Geçersiz gün parametresi, bugüne dönülüyor', { date });
+    log.warn('Invalid day parameter, falling back to today', { date });
     date = today;
   }
 
@@ -71,7 +72,7 @@ export function render({ params, onCleanup }) {
   );
 }
 
-/* ───────────────────────── başlık ───────────────────────── */
+/* ───────────────────────── header ───────────────────────── */
 
 function header(date, today) {
   const rel = relativeLabel(date, today);
@@ -81,16 +82,15 @@ function header(date, today) {
     h(
       'div',
       { class: 'today-head-text' },
-      h('p', { class: 'eyebrow' }, WEEKDAYS[weekday(date)], rel && rel !== 'Bugün' ? h('span', { class: 'eyebrow-rel' }, ` · ${rel}`) : null),
+      h('p', { class: 'eyebrow' }, WEEKDAYS[weekday(date)], rel && rel !== 'Today' ? h('span', { class: 'eyebrow-rel' }, ` · ${rel}`) : null),
       h('h1', { class: 'display' }, formatDayMonth(date)),
     ),
     h(
       'div',
       { class: 'head-actions' },
-      date !== today &&
-        h('button', { class: 'chip chip-accent', onclick: () => navigate('today') }, 'Bugüne dön'),
+      date !== today && h('button', { class: 'chip chip-accent', onclick: () => navigate('today') }, 'Back to today'),
       levelChip(),
-      h('a', { class: 'btn-icon', href: '#/settings', 'aria-label': 'Ayarlar' }, icon('settings')),
+      h('a', { class: 'btn-icon', href: '#/settings', 'aria-label': 'Settings' }, icon('settings')),
     ),
   );
 }
@@ -100,13 +100,13 @@ function levelChip() {
   const { level, progress, title } = store.summary().level;
   return h(
     'a',
-    { class: 'level-chip', href: '#/stats', 'aria-label': `Seviye ${level}, ${title}. Analiz ekranını aç` },
+    { class: 'level-chip', href: '#/stats', 'aria-label': `Level ${level}, ${title}. Open stats` },
     h('span', { class: 'level-ring', style: { '--p': `${Math.round(progress * 100)}%` }, 'aria-hidden': 'true' }),
     h('span', { class: 'num' }, String(level)),
   );
 }
 
-/* ───────────────────────── hafta şeridi ───────────────────────── */
+/* ───────────────────────── week strip ───────────────────────── */
 
 function weekStrip(date, today) {
   const start = startOfWeek(date);
@@ -123,7 +123,7 @@ function weekStrip(date, today) {
       {
         class: ['ws-day', k === date && 'is-selected', k === today && 'is-today', ratio === 1 && 'is-full'],
         disabled: future,
-        'aria-label': `${formatDayMonth(k)}${ratio != null ? `, %${pct} tamamlandı` : ''}`,
+        'aria-label': `${formatDayMonth(k)}${ratio != null ? `, ${pct}% complete` : ''}`,
         'aria-current': k === date ? 'date' : null,
         onclick: () => navigate(dayHref(k, today)),
       },
@@ -137,10 +137,10 @@ function weekStrip(date, today) {
   const nextWeek = addDays(start, 7);
   return h(
     'nav',
-    { class: 'week-strip', 'aria-label': 'Hafta' },
+    { class: 'week-strip', 'aria-label': 'Week' },
     h(
       'button',
-      { class: 'btn-icon ws-arrow', 'aria-label': 'Önceki hafta', onclick: () => navigate(dayHref(addDays(prevWeek, 6), today)) },
+      { class: 'btn-icon ws-arrow', 'aria-label': 'Previous week', onclick: () => navigate(dayHref(addDays(prevWeek, 6), today)) },
       icon('chevron-left', { size: 18 }),
     ),
     h('div', { class: 'ws-days' }, cells),
@@ -148,7 +148,7 @@ function weekStrip(date, today) {
       'button',
       {
         class: 'btn-icon ws-arrow',
-        'aria-label': 'Sonraki hafta',
+        'aria-label': 'Next week',
         disabled: nextWeek > today,
         onclick: () => {
           const target = addDays(nextWeek, 6) > today ? today : addDays(nextWeek, 6);
@@ -160,7 +160,7 @@ function weekStrip(date, today) {
   );
 }
 
-/* ───────────────────────── günün sözü ───────────────────────── */
+/* ───────────────────────── quote of the day ───────────────────────── */
 
 function quoteBlock(date) {
   const { quoteSource, favQuotes } = store.settings;
@@ -177,7 +177,7 @@ function quoteBlock(date) {
     h(
       'figcaption',
       { class: 'quote-foot' },
-      h('span', { class: 'quote-author' }, q.author || 'Anonim'),
+      h('span', { class: 'quote-author' }, q.author || 'Anonymous'),
       h(
         'span',
         { class: 'quote-actions' },
@@ -185,7 +185,7 @@ function quoteBlock(date) {
           'button',
           {
             class: ['btn-icon btn-icon-sm', isFav && 'is-fav'],
-            'aria-label': isFav ? 'Favorilerden çıkar' : 'Favorilere ekle',
+            'aria-label': isFav ? 'Remove from favorites' : 'Add to favorites',
             'aria-pressed': String(isFav),
             onclick: () => store.toggleFavoriteQuote(q.id).catch(showError),
           },
@@ -195,10 +195,10 @@ function quoteBlock(date) {
           'button',
           {
             class: 'btn-icon btn-icon-sm',
-            'aria-label': 'Kopyala',
+            'aria-label': 'Copy',
             onclick: async () => {
-              const ok = await copyText(`“${q.text}” — ${q.author || 'Anonim'}`);
-              toast(ok ? 'Kopyalandı' : 'Kopyalanamadı', { type: ok ? 'info' : 'warn' });
+              const ok = await copyText(`“${q.text}” — ${q.author || 'Anonymous'}`);
+              toast(ok ? 'Copied' : 'Could not copy', { type: ok ? 'info' : 'warn' });
             },
           },
           icon('copy', { size: 17 }),
@@ -208,7 +208,7 @@ function quoteBlock(date) {
   );
 }
 
-/* ───────────────────────── alışkanlıklar ───────────────────────── */
+/* ───────────────────────── habits ───────────────────────── */
 
 function habitsSection(date, today) {
   const habits = store.habitsOn(date).filter((x) => x.kind === 'build');
@@ -221,8 +221,8 @@ function habitsSection(date, today) {
     return h(
       'section',
       { class: 'section' },
-      h('div', { class: 'section-head' }, h('h2', { class: 'section-title' }, 'Alışkanlıklar')),
-      h('button', { class: 'btn btn-quiet add-row', onclick: () => openHabitForm() }, icon('plus', { size: 18 }), 'Kazanmak istediğin bir alışkanlık ekle'),
+      h('div', { class: 'section-head' }, h('h2', { class: 'section-title' }, 'Habits')),
+      h('button', { class: 'btn btn-quiet add-row', onclick: () => openHabitForm() }, icon('plus', { size: 18 }), 'Add a habit to build'),
     );
   }
 
@@ -234,37 +234,30 @@ function habitsSection(date, today) {
     h(
       'div',
       { class: 'section-head' },
-      h('h2', { class: 'section-title' }, 'Alışkanlıklar'),
+      h('h2', { class: 'section-title' }, 'Habits'),
       h(
         'div',
         { class: 'section-meta' },
         planned.length > 0 && h('span', { class: ['num', allDone && 'text-accent'] }, `${doneCount}/${planned.length}`),
-        h('a', { class: 'link', href: '#/habits' }, 'Düzenle'),
+        h('a', { class: 'link', href: '#/habits' }, 'Edit'),
       ),
     ),
     planned.length > 0 &&
       h(
         'div',
         { class: 'progress-seg', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': planned.length, 'aria-valuenow': doneCount },
-        planned.map((x) =>
-          h('i', { class: store.isDone(x.id, date) ? 'on' : '', style: { '--c': colorHex(x.color) } }),
-        ),
+        planned.map((x) => h('i', { class: store.isDone(x.id, date) ? 'on' : '', style: { '--c': colorHex(x.color) } })),
       ),
-    planned.length === 0 && h('p', { class: 'muted small pad-y' }, 'Bu gün için planlı alışkanlık yok.'),
+    planned.length === 0 && h('p', { class: 'muted small pad-y' }, 'Nothing planned for this day.'),
     planned.length > 0 && h('ul', { class: 'habit-list' }, planned.map((x) => habitRow(x, date, today))),
     offPlan.length > 0 &&
       h(
         'details',
         { class: 'offplan', open: offPlanOpen, ontoggle: (e) => (offPlanOpen = e.target.open) },
-        h('summary', null, `Plan dışı (${offPlan.length})`),
+        h('summary', null, `Not planned (${offPlan.length})`),
         h('ul', { class: 'habit-list' }, offPlan.map((x) => habitRow(x, date, today, true))),
       ),
-    h(
-      'button',
-      { class: 'btn btn-quiet add-row', onclick: () => openHabitForm() },
-      icon('plus', { size: 18 }),
-      'Alışkanlık ekle',
-    ),
+    h('button', { class: 'btn btn-quiet add-row', onclick: () => openHabitForm() }, icon('plus', { size: 18 }), 'Add habit'),
   );
 }
 
@@ -272,14 +265,14 @@ function emptyHabits() {
   return h(
     'section',
     { class: 'section empty' },
-    h('p', { class: 'empty-title' }, 'Bir şeyle başla.'),
-    h('p', { class: 'muted' }, 'Her gün yapmak istediğin küçük bir şey seç. Önerilerden birine dokun ya da kendin yaz.'),
+    h('p', { class: 'empty-title' }, 'Start with one thing.'),
+    h('p', { class: 'muted' }, 'Pick something small you want to do every day. Tap a suggestion or write your own.'),
     h(
       'div',
       { class: 'chip-row' },
       SUGGESTIONS.map((name) => h('button', { class: 'chip', onclick: () => openHabitForm(null, { name }) }, name)),
     ),
-    h('button', { class: 'btn btn-primary', onclick: () => openHabitForm() }, icon('plus', { size: 18 }), 'Alışkanlık ekle'),
+    h('button', { class: 'btn btn-primary', onclick: () => openHabitForm() }, icon('plus', { size: 18 }), 'Add habit'),
   );
 }
 
@@ -297,22 +290,22 @@ function habitRow(habit, date, today, offPlan = false) {
       {
         class: ['check', justNow && done && 'pop'],
         'aria-pressed': String(done),
-        'aria-label': `${habit.name}: ${done ? 'yapıldı, geri al' : 'yapıldı olarak işaretle'}`,
+        'aria-label': `${habit.name}: ${done ? 'done, tap to undo' : 'mark as done'}`,
         onclick: () => toggle(habit, date),
       },
       icon('check', { size: 18, cls: 'check-icon' }),
     ),
     h(
       'button',
-      { class: 'habit-body', onclick: () => openHabitDetail(habit.id), 'aria-label': `${habit.name} ayrıntıları` },
+      { class: 'habit-body', onclick: () => openHabitDetail(habit.id), 'aria-label': `${habit.name} details` },
       h('span', { class: 'habit-name' }, habit.name),
       h(
         'span',
         { class: 'habit-meta' },
         streak > 0
-          ? [icon('flame', { size: 13, cls: 'meta-flame' }), h('span', { class: 'num' }, String(streak)), ' gün seri']
-          : 'Seri yok',
-        offPlan ? ' · plan dışı' : '',
+          ? [icon('flame', { size: 13, cls: 'meta-flame' }), h('span', { class: 'num' }, String(streak)), ` day streak`]
+          : 'No streak',
+        offPlan ? ' · not planned' : '',
       ),
     ),
     weekDots(habit, date),
@@ -341,7 +334,7 @@ async function toggle(habit, date) {
       celebrateIfComplete(date);
     }
   } catch (e) {
-    showError(e, 'İşaretlenemedi.');
+    showError(e, 'Could not check off.');
   } finally {
     setTimeout(() => {
       if (lastToggled === `${habit.id}|${date}`) lastToggled = null;
@@ -352,12 +345,12 @@ async function toggle(habit, date) {
 function celebrateIfComplete(date) {
   const { done, total } = dayCompletion(store.allHabits(), (id, k) => store.isDone(id, k), date);
   if (total > 0 && done === total) {
-    log.info('Tam gün', { date, total });
-    toast(total > 1 ? `Tam gün. ${total} alışkanlığın hepsi tamam.` : 'Tam gün.');
+    log.info('Perfect day', { date, total });
+    toast(total > 1 ? `Perfect day. All ${total} habits done.` : 'Perfect day.');
   }
 }
 
-/* ───────────────────────── öncelikler ───────────────────────── */
+/* ───────────────────────── priorities ───────────────────────── */
 
 function prioritiesSection(date, onCleanup) {
   if (!prioDrafts.has(date)) {
@@ -376,7 +369,7 @@ function prioritiesSection(date, onCleanup) {
     try {
       await store.updateDay(date, { priorities: slots.map((x) => ({ ...x })) }, { silent });
     } catch (e) {
-      showError(e, 'Öncelikler kaydedilemedi.');
+      showError(e, 'Could not save priorities.');
     }
   }
   onCleanup(() => {
@@ -392,7 +385,7 @@ function prioritiesSection(date, onCleanup) {
       {
         class: 'prio-check',
         'aria-pressed': String(slot.done),
-        'aria-label': `${i + 1}. öncelik ${slot.done ? 'tamamlandı, geri al' : 'tamamlandı olarak işaretle'}`,
+        'aria-label': `Priority ${i + 1}: ${slot.done ? 'done, tap to undo' : 'mark as done'}`,
         disabled: !slot.text.trim(),
         onclick: () => {
           slot.done = !slot.done;
@@ -407,7 +400,7 @@ function prioritiesSection(date, onCleanup) {
       type: 'text',
       maxlength: 120,
       enterkeyhint: i < MAX_PRIORITIES - 1 ? 'next' : 'done',
-      placeholder: ['Bugünün en önemli işi', 'İkinci öncelik', 'Üçüncü öncelik'][i],
+      placeholder: ['The most important thing today', 'Second priority', 'Third priority'][i],
       'data-fk': `prio-${date}-${i}`,
       value: slot.text,
       oninput: (e) => {
@@ -437,14 +430,14 @@ function prioritiesSection(date, onCleanup) {
     h(
       'div',
       { class: 'section-head' },
-      h('h2', { class: 'section-title' }, 'Öncelikler'),
+      h('h2', { class: 'section-title' }, 'Priorities'),
       filled.length > 0 && h('span', { class: 'section-meta num' }, `${doneCount}/${filled.length}`),
     ),
     h('ol', { class: 'prio-list' }, rows),
   );
 }
 
-/* ───────────────────────── bırakılacaklar ───────────────────────── */
+/* ───────────────────────── quit habits ───────────────────────── */
 
 function quitSection(date) {
   const quits = store.habitsOn(date).filter((x) => x.kind === 'quit');
@@ -452,7 +445,7 @@ function quitSection(date) {
   return h(
     'section',
     { class: 'section' },
-    h('div', { class: 'section-head' }, h('h2', { class: 'section-title' }, 'Bırakılacaklar')),
+    h('div', { class: 'section-head' }, h('h2', { class: 'section-title' }, 'Quitting')),
     h('ul', { class: 'quit-list' }, quits.map((x) => quitRow(x, date))),
   );
 }
@@ -464,13 +457,13 @@ function quitRow(habit, date) {
     { class: ['quit', s.slippedToday && 'is-slipped'], style: { '--c': colorHex(habit.color) } },
     h(
       'button',
-      { class: 'quit-main', onclick: () => openHabitDetail(habit.id), 'aria-label': `${habit.name} ayrıntıları` },
-      h('span', { class: 'quit-count' }, h('span', { class: 'quit-num serif' }, String(s.current)), h('span', { class: 'quit-unit' }, 'gün')),
+      { class: 'quit-main', onclick: () => openHabitDetail(habit.id), 'aria-label': `${habit.name} details` },
+      h('span', { class: 'quit-count' }, h('span', { class: 'quit-num serif' }, String(s.current)), h('span', { class: 'quit-unit' }, s.current === 1 ? 'day' : 'days')),
       h(
         'span',
         { class: 'quit-text' },
         h('span', { class: 'quit-name' }, habit.name),
-        h('span', { class: 'quit-meta' }, s.slippedToday ? 'Bu gün kaydın var' : s.best > s.current ? `En uzun ${s.best} gün` : 'Temiz gidiyor'),
+        h('span', { class: 'quit-meta' }, s.slippedToday ? 'Slip logged for this day' : s.best > s.current ? `Longest: ${s.best} days` : 'Going clean'),
       ),
     ),
     h(
@@ -479,7 +472,7 @@ function quitRow(habit, date) {
         class: ['btn btn-sm', s.slippedToday ? 'btn-quiet' : 'btn-ghost'],
         onclick: () => toggleSlip(habit, date, s.slippedToday),
       },
-      s.slippedToday ? 'Geri al' : 'Kaydım',
+      s.slippedToday ? 'Undo' : 'I slipped',
     ),
   );
 }
@@ -488,9 +481,9 @@ async function toggleSlip(habit, date, wasSlipped) {
   try {
     await store.toggleCheck(habit.id, date);
     if (!wasSlipped) {
-      log.info('Kayma kaydedildi', { habit: habit.name, date });
-      toast('Kaydedildi. Sayaç sıfırdan başlıyor; önemli olan yarın.', {
-        action: { label: 'Geri al', fn: () => store.toggleCheck(habit.id, date).catch(showError) },
+      log.info('Slip logged', { habit: habit.name, date });
+      toast('Logged. The counter starts over — tomorrow is what counts.', {
+        action: { label: 'Undo', fn: () => store.toggleCheck(habit.id, date).catch(showError) },
       });
     }
   } catch (e) {
@@ -498,11 +491,11 @@ async function toggleSlip(habit, date, wasSlipped) {
   }
 }
 
-/* ───────────────────────── akşam değerlendirmesi ───────────────────────── */
+/* ───────────────────────── evening review ───────────────────────── */
 
 function reviewSection(date) {
   const r = store.day(date).review;
-  const head = h('div', { class: 'section-head' }, h('h2', { class: 'section-title' }, 'Akşam'));
+  const head = h('div', { class: 'section-head' }, h('h2', { class: 'section-title' }, 'Evening'));
   if (!r) {
     return h(
       'section',
@@ -514,8 +507,8 @@ function reviewSection(date) {
         h(
           'span',
           { class: 'review-cta-text' },
-          h('span', { class: 'review-cta-title serif' }, 'Günü değerlendir'),
-          h('span', { class: 'review-cta-sub' }, 'Puan, ruh hali ve iki kısa soru. Bir dakika sürer.'),
+          h('span', { class: 'review-cta-title serif' }, 'Review your day'),
+          h('span', { class: 'review-cta-sub' }, 'A score, your mood and two short questions. Takes a minute.'),
         ),
         icon('arrow-right', { size: 18, cls: 'review-cta-arrow' }),
       ),
@@ -527,7 +520,7 @@ function reviewSection(date) {
     head,
     h(
       'button',
-      { class: 'review-card', onclick: () => openReviewForm(date), 'aria-label': 'Değerlendirmeyi düzenle' },
+      { class: 'review-card', onclick: () => openReviewForm(date), 'aria-label': 'Edit review' },
       h('span', { class: 'review-score' }, h('span', { class: 'serif' }, String(r.score)), h('span', { class: 'review-of num' }, '/10')),
       h(
         'span',
@@ -536,22 +529,22 @@ function reviewSection(date) {
           h(
             'span',
             { class: 'review-tags' },
-            r.mood && h('span', null, `Ruh hali: ${MOOD_LABELS[r.mood - 1]}`),
-            r.energy && h('span', null, `Enerji: ${ENERGY_LABELS[r.energy - 1]}`),
+            r.mood && h('span', null, `Mood: ${MOOD_LABELS[r.mood - 1]}`),
+            r.energy && h('span', null, `Energy: ${ENERGY_LABELS[r.energy - 1]}`),
           ),
-        r.good && h('span', { class: 'review-line' }, h('b', null, 'İyi: '), r.good),
-        r.improve && h('span', { class: 'review-line' }, h('b', null, 'Yarın: '), r.improve),
+        r.good && h('span', { class: 'review-line' }, h('b', null, 'Went well: '), r.good),
+        r.improve && h('span', { class: 'review-line' }, h('b', null, 'Tomorrow: '), r.improve),
       ),
     ),
   );
 }
 
-/* ───────────────────────── not ───────────────────────── */
+/* ───────────────────────── note ───────────────────────── */
 
 function noteSection(date, onCleanup) {
   const saved = store.day(date).note ?? '';
   const initial = noteDrafts.has(date) ? noteDrafts.get(date) : saved;
-  const status = h('span', { class: 'save-status' }, saved ? 'Kaydedildi' : '');
+  const status = h('span', { class: 'save-status' }, saved ? 'Saved' : '');
   let timer = null;
 
   async function save() {
@@ -561,15 +554,15 @@ function noteSection(date, onCleanup) {
     const value = noteDrafts.get(date);
     try {
       await store.updateDay(date, { note: value }, { silent: true });
-      // Kaydederken yeni bir şey yazılmadıysa taslağı temizle.
+      // Clear the draft unless something new was typed while saving.
       if (noteDrafts.get(date) === value) noteDrafts.delete(date);
       if (status.isConnected) {
-        status.textContent = value.trim() ? 'Kaydedildi' : '';
+        status.textContent = value.trim() ? 'Saved' : '';
         status.classList.remove('is-busy');
       }
     } catch (e) {
-      showError(e, 'Not kaydedilemedi.');
-      if (status.isConnected) status.textContent = 'Kaydedilemedi';
+      showError(e, 'Could not save the note.');
+      if (status.isConnected) status.textContent = 'Not saved';
     }
   }
 
@@ -577,11 +570,11 @@ function noteSection(date, onCleanup) {
     class: 'note-input',
     rows: 3,
     maxlength: 5000,
-    placeholder: 'Bugün ne yaptın? Neyi iyi yaptın, neye dikkat etmelisin?',
+    placeholder: 'What did you do today? What went well, what needs attention?',
     'data-fk': `note-${date}`,
     oninput: (e) => {
       noteDrafts.set(date, e.target.value);
-      status.textContent = 'Yazılıyor…';
+      status.textContent = 'Typing…';
       status.classList.add('is-busy');
       autosize(e.target);
       clearTimeout(timer);
@@ -596,7 +589,7 @@ function noteSection(date, onCleanup) {
   return h(
     'section',
     { class: 'section' },
-    h('div', { class: 'section-head' }, h('h2', { class: 'section-title' }, 'Not'), status),
+    h('div', { class: 'section-head' }, h('h2', { class: 'section-title' }, 'Note'), status),
     h('div', { class: 'note-card' }, ta),
   );
 }

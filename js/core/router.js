@@ -1,8 +1,8 @@
 /**
- * Basit hash yönlendirici: #/today, #/today/2026-10-08, #/settings ...
+ * Minimal hash router: #/today, #/today/2026-10-08, #/settings ...
  *
- * Her view modülü `render(ctx)` dışa aktarır ve bir HTMLElement döner.
- * ctx.onCleanup(fn): view yeniden çizilmeden/ayrılmadan önce çağrılacak temizlik (zamanlayıcı, kayıt vb.).
+ * Each view module exports `render(ctx)` and returns an HTMLElement.
+ * ctx.onCleanup(fn): called before the view re-renders or is left (timers, pending saves).
  */
 import { createLogger } from './logger.js';
 import { h } from '../ui/dom.js';
@@ -25,11 +25,11 @@ function errorPanel(e, view) {
   return h(
     'div',
     { class: 'error-panel' },
-    h('p', { class: 'eyebrow' }, 'Hata'),
-    h('h1', { class: 'display-sm' }, 'Bu sayfa açılamadı.'),
-    h('p', { class: 'muted' }, `“${view}” çizilirken bir sorun oluştu. Ayrıntılar Ayarlar › Kayıtlar bölümünde.`),
+    h('p', { class: 'eyebrow' }, 'Error'),
+    h('h1', { class: 'display-sm' }, 'This page could not be opened.'),
+    h('p', { class: 'muted' }, `Something went wrong while rendering “${view}”. Details are in Settings › Logs.`),
     h('pre', { class: 'error-pre' }, String(e?.stack || e)),
-    h('button', { class: 'btn btn-ghost', onclick: () => navigate('today') }, 'Bugüne dön'),
+    h('button', { class: 'btn btn-ghost', onclick: () => navigate('today') }, 'Back to today'),
   );
 }
 
@@ -44,7 +44,7 @@ export function createRouter({ views, defaultView, container, onChange }) {
       try {
         fn();
       } catch (e) {
-        log.error('Temizlik hatası', e);
+        log.error('Cleanup error', e);
       }
     });
   }
@@ -52,7 +52,7 @@ export function createRouter({ views, defaultView, container, onChange }) {
   function render(reason) {
     let { name, params } = parseHash(location.hash);
     if (!views[name]) {
-      if (name) log.warn('Bilinmeyen rota, varsayılana dönülüyor', { name });
+      if (name) log.warn('Unknown route, falling back to default', { name });
       name = defaultView;
       params = [];
       history.replaceState(history.state, '', `#/${defaultView}`);
@@ -60,7 +60,7 @@ export function createRouter({ views, defaultView, container, onChange }) {
     const routeChanged = lastHash !== location.hash;
     lastHash = location.hash;
 
-    // Yeniden çizimde odaklı alanı geri getirebilmek için kaydet.
+    // Remember the focused field so it can be restored after a re-render.
     const active = document.activeElement;
     const focusKey = container.contains(active) ? active?.dataset?.fk : null;
     const sel = focusKey && 'selectionStart' in active ? [active.selectionStart, active.selectionEnd] : null;
@@ -71,7 +71,7 @@ export function createRouter({ views, defaultView, container, onChange }) {
     try {
       el = views[name].render({ params, onCleanup: (fn) => cleanups.push(fn) });
     } catch (e) {
-      log.error(`"${name}" çizilemedi`, e);
+      log.error(`Failed to render "${name}"`, e);
       el = errorPanel(e, name);
     }
     if (routeChanged) el.classList.add('enter');
@@ -87,7 +87,7 @@ export function createRouter({ views, defaultView, container, onChange }) {
           try {
             again.setSelectionRange(sel[0], sel[1]);
           } catch {
-            /* bazı input türleri desteklemez */
+            /* some input types do not support selection */
           }
         }
       }

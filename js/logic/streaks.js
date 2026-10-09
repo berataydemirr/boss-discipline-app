@@ -1,23 +1,22 @@
 /**
- * Seri (streak) ve başarı oranı hesapları. SAF modül.
+ * Streak and completion-rate calculations. PURE module.
  *
- * Kurallar:
- * - Yalnızca alışkanlığın planlı olduğu günler sayılır; planlı olmayan günler seriyi bozmaz.
- * - Bugün planlıysa ama henüz işaretlenmediyse seri bozulmuş sayılmaz (gün bitmedi).
- * - Başlangıç tarihinden (createdAt) önceki günler hesaba katılmaz.
+ * Rules:
+ * - Only the habit's scheduled days count; unscheduled days never break a streak.
+ * - If today is scheduled but not checked yet, the streak is not broken (the day isn't over).
+ * - Days before the start date (createdAt) are ignored.
  *
- * Bırakılacak (quit) alışkanlıklar için "temiz gün" = kayma (slip) olmadan TAMAMLANMIŞ gün sayısı;
- * bugün devam ettiği için sayılmaz.
+ * For quit habits, "clean days" = COMPLETED days without a slip; today does not count yet.
  */
 import { addDays, diffDays, weekday, eachDay } from '../core/dates.js';
 
-const MAX_LOOKBACK = 3700; // ~10 yıl; sonsuz döngüye karşı güvenlik sınırı
+const MAX_LOOKBACK = 3700; // ~10 years; guard against runaway loops
 
 export function isScheduled(habit, key) {
   return habit.days.includes(weekday(key));
 }
 
-/** @param {Set<string>} doneSet alışkanlığın yapıldığı günler */
+/** @param {Set<string>} doneSet days the habit was done */
 export function currentStreak(habit, doneSet, today) {
   let key = today;
   let streak = 0;
@@ -49,8 +48,8 @@ export function bestStreak(habit, doneSet, today) {
 }
 
 /**
- * [from, to] aralığında planlı günlerin kaçında yapıldığı.
- * Bugün henüz yapılmadıysa paydaya eklenmez (adaletsiz düşüşü önler).
+ * On how many scheduled days in [from, to] the habit was done.
+ * Today is excluded from the denominator until it is done (avoids an unfair dip).
  */
 export function completionRate(habit, doneSet, from, to, today) {
   const start = from > habit.createdAt ? from : habit.createdAt;
@@ -68,7 +67,7 @@ export function completionRate(habit, doneSet, from, to, today) {
 }
 
 /**
- * @param {string[]} slipDates kayma günleri (sırasız olabilir)
+ * @param {string[]} slipDates slip days (any order)
  * @returns {{current:number, best:number, slips:number, slippedToday:boolean}}
  */
 export function quitStats(habit, slipDates, today) {

@@ -8,48 +8,48 @@ const weekdays = { createdAt: '2026-09-01', days: [0, 1, 2, 3, 4] };
 const set = (...d) => new Set(d);
 const range = (from, n) => Array.from({ length: n }, (_, i) => addDays(from, i));
 
-// 2026-10-09 Cuma
+// 2026-10-09 is a Friday
 const TODAY = '2026-10-09';
 
-test('bugün henüz yapılmadıysa seri bozulmaz', () => {
+test('an unchecked today does not break the streak', () => {
   assert.equal(currentStreak(every, set('2026-10-07', '2026-10-08'), TODAY), 2);
 });
 
-test('bugün yapıldıysa seriye eklenir', () => {
+test('a checked today extends the streak', () => {
   assert.equal(currentStreak(every, set('2026-10-07', '2026-10-08', TODAY), TODAY), 3);
 });
 
-test('dün kaçırıldıysa seri 0', () => {
+test('missing yesterday resets the streak to 0', () => {
   assert.equal(currentStreak(every, set('2026-10-06', '2026-10-07'), TODAY), 0);
 });
 
-test('planlı olmayan günler (hafta sonu) seriyi bozmaz', () => {
-  // Pazartesi 2026-10-12 itibarıyla: Perşembe ve Cuma yapılmış, hafta sonu boş
+test('unscheduled days (weekend) do not break the streak', () => {
+  // As of Monday 2026-10-12: Thursday and Friday done, weekend empty
   assert.equal(currentStreak(weekdays, set('2026-10-08', '2026-10-09'), '2026-10-12'), 2);
   assert.equal(currentStreak(weekdays, set('2026-10-08', '2026-10-09', '2026-10-12'), '2026-10-12'), 3);
 });
 
-test('başlangıçtan önce durur', () => {
+test('stops at the start date', () => {
   const h = { createdAt: '2026-10-08', days: [0, 1, 2, 3, 4, 5, 6] };
   assert.equal(currentStreak(h, set('2026-10-08', TODAY, '2026-10-01'), TODAY), 2);
 });
 
-test('hiç işaret yoksa 0', () => {
+test('no check-ins means 0', () => {
   assert.equal(currentStreak(every, set(), TODAY), 0);
   assert.equal(bestStreak(every, set(), TODAY), 0);
 });
 
-test('en iyi seri', () => {
+test('best streak', () => {
   const done = set(...range('2026-09-01', 5), ...range('2026-09-10', 9), '2026-10-08');
   assert.equal(bestStreak(every, done, TODAY), 9);
 });
 
-test('en iyi seri bugünü bekleyen seriyi sıfırlamaz', () => {
+test('best streak is not reset by a pending today', () => {
   const done = set(...range('2026-10-01', 8)); // 10-01..10-08
   assert.equal(bestStreak({ createdAt: '2026-10-01', days: every.days }, done, TODAY), 8);
 });
 
-test('başarı oranı: bugün yapılmadıysa paydaya girmez', () => {
+test('completion rate: an unchecked today is not in the denominator', () => {
   const h = { createdAt: '2026-10-05', days: [0, 1, 2, 3, 4, 5, 6] };
   const r = completionRate(h, set('2026-10-05', '2026-10-06', '2026-10-08'), '2026-10-01', TODAY, TODAY);
   assert.deepEqual(r, { done: 3, total: 4, rate: 0.75 });
@@ -58,7 +58,7 @@ test('başarı oranı: bugün yapılmadıysa paydaya girmez', () => {
   assert.equal(r2.done, 2);
 });
 
-test('başarı oranı: aralık başlangıçtan önceyse null', () => {
+test('completion rate: null when the range is before the start', () => {
   const r = completionRate({ createdAt: TODAY, days: every.days }, set(), '2026-10-01', '2026-10-05', TODAY);
   assert.equal(r.rate, null);
 });
@@ -68,15 +68,15 @@ test('isScheduled', () => {
   assert.ok(!isScheduled(weekdays, '2026-10-10'));
 });
 
-test('bırakma: kayma yoksa başlangıçtan bu yana tamamlanan gün', () => {
+test('quit: without slips, counts completed days since the start', () => {
   const h = { createdAt: '2026-10-01' };
   assert.deepEqual(quitStats(h, [], TODAY), { current: 8, best: 8, slips: 0, slippedToday: false });
   assert.equal(quitStats({ createdAt: TODAY }, [], TODAY).current, 0);
 });
 
-test('bırakma: kaymadan sonra sayaç sıfırlanır, en iyi korunur', () => {
+test('quit: a slip resets the counter, the best is kept', () => {
   const h = { createdAt: '2026-09-01' };
-  // 09-01..09-20 temiz (20 gün), 09-21 kayma, 09-22..10-04 temiz (13), 10-05 kayma
+  // 09-01..09-20 clean (20 days), slip 09-21, 09-22..10-04 clean (13), slip 10-05
   const s = quitStats(h, ['2026-10-05', '2026-09-21'], TODAY);
   assert.equal(s.slips, 2);
   assert.equal(s.best, 20);
@@ -84,14 +84,14 @@ test('bırakma: kaymadan sonra sayaç sıfırlanır, en iyi korunur', () => {
   assert.equal(s.slippedToday, false);
 });
 
-test('bırakma: bugün kayma', () => {
+test('quit: slip today', () => {
   const s = quitStats({ createdAt: '2026-10-01' }, [TODAY], TODAY);
   assert.equal(s.current, 0);
   assert.ok(s.slippedToday);
   assert.equal(s.best, 8);
 });
 
-test('bırakma: başlangıç öncesi ve gelecek kaymaları yok sayılır', () => {
+test('quit: slips before the start or in the future are ignored', () => {
   const s = quitStats({ createdAt: '2026-10-01' }, ['2026-09-15', '2026-12-01'], TODAY);
   assert.equal(s.slips, 0);
   assert.equal(s.current, 8);

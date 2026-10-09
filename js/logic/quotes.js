@@ -1,73 +1,73 @@
 /**
- * Günün sözü. SAF modül.
+ * Quote of the day. PURE module.
  *
- * Seçim deterministiktir: aynı gün her açılışta aynı söz gelir.
- * Havuz her "tur"da tohumlu olarak karıştırılır; böylece tüm sözler
- * bitmeden aynı söz tekrar gelmez ve sıralama her tur farklı olur.
+ * Selection is deterministic: the same day always shows the same quote.
+ * The pool is shuffled with a seed for every "cycle", so no quote repeats
+ * until all have been shown, and each cycle has a different order.
  */
 import { diffDays } from '../core/dates.js';
 
 const EPOCH = '2024-01-01';
 
 export const BUILTIN_QUOTES = [
-  { id: 'b01', text: 'Biz, tekrar tekrar yaptığımız şeyleriz. O hâlde mükemmellik bir eylem değil, bir alışkanlıktır.', author: 'Will Durant' },
-  { id: 'b02', text: 'Engel olan şey, yolun ta kendisi olur.', author: 'Marcus Aurelius' },
-  { id: 'b03', text: 'İnsanın ne olduğunu gösteren şey, zorluklardır.', author: 'Epiktetos' },
-  { id: 'b04', text: 'Gerçekte olduğundan çok, hayalimizde acı çekeriz.', author: 'Seneca' },
-  { id: 'b05', text: 'Damlaya damlaya göl olur.', author: 'Atasözü' },
-  { id: 'b06', text: 'İşleyen demir ışıldar.', author: 'Atasözü' },
-  { id: 'b07', text: 'Bugünün işini yarına bırakma.', author: 'Atasözü' },
-  { id: 'b08', text: 'Hayatta en hakiki mürşit ilimdir.', author: 'Mustafa Kemal Atatürk' },
-  { id: 'b09', text: 'Bin kilometrelik bir yolculuk, tek bir adımla başlar.', author: 'Lao Tzu' },
-  { id: 'b10', text: 'Disiplin, hedeflerle başarı arasındaki köprüdür.', author: 'Jim Rohn' },
-  { id: 'b11', text: 'Başarı, her gün tekrarlanan küçük çabaların toplamıdır.', author: 'Robert Collier' },
-  { id: 'b12', text: 'Hedeflerinin seviyesine yükselmezsin; sistemlerinin seviyesine düşersin.', author: 'James Clear' },
-  { id: 'b13', text: 'Yaptığın her eylem, olmak istediğin kişiye verilmiş bir oydur.', author: 'James Clear' },
-  { id: 'b14', text: 'Önce ne olmak istediğini kendine söyle; sonra yapman gerekeni yap.', author: 'Epiktetos' },
-  { id: 'b15', text: 'Ruh, düşüncelerinin rengine boyanır.', author: 'Marcus Aurelius' },
-  { id: 'b16', text: 'Hayat kısa değil; biz onun çoğunu boşa harcıyoruz.', author: 'Seneca' },
-  { id: 'b17', text: 'Motivasyon seni başlatır, alışkanlık devam ettirir.', author: 'Jim Ryun' },
-  { id: 'b18', text: 'Kendine hâkim olamayan kimse özgür değildir.', author: 'Epiktetos' },
-  { id: 'b19', text: 'Acele etmeden, ama durmadan.', author: 'Goethe' },
-  { id: 'b20', text: 'Mükemmel, iyinin düşmanıdır.', author: 'Voltaire' },
-  { id: 'b21', text: 'Yaptığın her işi, hayatının son işiymiş gibi yap.', author: 'Marcus Aurelius' },
-  { id: 'b22', text: 'Ne kadar yavaş gittiğin önemli değil; yeter ki durma.', author: 'Konfüçyüs’e atfedilir' },
-  { id: 'b23', text: 'Yapmadan önce öğrenmemiz gereken şeyleri, yaparak öğreniriz.', author: 'Aristoteles' },
-  { id: 'b24', text: 'Başlamak için harika olmak zorunda değilsin; ama harika olmak için başlamak zorundasın.', author: 'Zig Ziglar' },
-  { id: 'b25', text: 'Zor işleri kolayken, büyük işleri küçükken yap.', author: 'Lao Tzu' },
-  { id: 'b26', text: 'En güçlü insan, kendi üzerinde hâkimiyeti olandır.', author: 'Seneca' },
-  { id: 'b27', text: 'Her gün yüzde bir daha iyi ol; bir yılın sonunda otuz yedi kat daha iyi olursun.', author: 'James Clear' },
-  { id: 'b28', text: 'Su aka aka yolunu bulur.', author: 'Atasözü' },
-  { id: 'b29', text: 'Disiplin özgürlüktür.', author: 'Jocko Willink' },
-  { id: 'b30', text: 'Ertelemek, zamanın hırsızıdır.', author: 'Edward Young' },
-  { id: 'b31', text: 'Ateş altını, zorluk cesur insanı sınar.', author: 'Seneca' },
-  { id: 'b32', text: 'Öfkeyle kalkan zararla oturur.', author: 'Atasözü' },
-  { id: 'b33', text: 'Hayat, insanın cesaretiyle orantılı olarak genişler ya da daralır.', author: 'Anaïs Nin' },
-  { id: 'b34', text: 'Bir şey yapılıncaya kadar hep imkânsız görünür.', author: 'Nelson Mandela’ya atfedilir' },
-  { id: 'b35', text: 'Zaman en kıt kaynaktır; o yönetilmedikçe başka hiçbir şey yönetilemez.', author: 'Peter Drucker' },
-  { id: 'b36', text: 'Hayat, başına gelenlerin yüzde onu, onlara nasıl tepki verdiğinin yüzde doksanıdır.', author: 'Charles R. Swindoll' },
-  { id: 'b37', text: 'Odaklanmak, hayır demektir.', author: 'Steve Jobs' },
-  { id: 'b38', text: 'Önce biz alışkanlıklarımızı yaparız, sonra alışkanlıklarımız bizi yapar.', author: 'John Dryden’a atfedilir' },
-  { id: 'b39', text: 'Ya disiplinin acısını ya da pişmanlığın acısını çekeceksin.', author: 'Jim Rohn' },
-  { id: 'b40', text: 'Yavaş büyümekten korkma; yalnızca yerinde saymaktan kork.', author: 'Çin atasözü' },
-  { id: 'b41', text: 'Konfor alanı güzel bir yerdir, ama orada hiçbir şey yetişmez.', author: 'Anonim' },
-  { id: 'b42', text: 'Bugün yaptığın şey, yarın olacağın kişiyi belirler.', author: 'Anonim' },
-  { id: 'b43', text: 'Küçük adımlar da adımdır.', author: 'Anonim' },
-  { id: 'b44', text: 'Talih, yalnızca hazırlıklı zihinlerden yanadır.', author: 'Louis Pasteur' },
-  { id: 'b45', text: 'Sabrın sonu selamettir.', author: 'Atasözü' },
-  { id: 'b46', text: 'Emek olmadan yemek olmaz.', author: 'Atasözü' },
-  { id: 'b47', text: 'Derin çalışma giderek nadirleşiyor; tam da bu yüzden giderek değerleniyor.', author: 'Cal Newport' },
-  { id: 'b48', text: 'Fırsatlar çoğu zaman iş tulumu giydiği için kaçırılır; çünkü iş gibi görünürler.', author: 'Thomas Edison’a atfedilir' },
-  { id: 'b49', text: 'Kim olmak istediğine karar ver, sonra bunu küçük kazanımlarla kendine kanıtla.', author: 'James Clear' },
-  { id: 'b50', text: 'İstediğin şeyi şimdi istediğin şey uğruna feda etme.', author: 'Anonim' },
-  { id: 'b51', text: 'Kendini yenmek, zaferlerin ilki ve en büyüğüdür.', author: 'Platon' },
-  { id: 'b52', text: 'Düşünceler eyleme, eylemler alışkanlığa, alışkanlıklar karaktere dönüşür.', author: 'Anonim' },
-  { id: 'b53', text: 'Tembele iş buyur, sana akıl öğretsin.', author: 'Atasözü' },
-  { id: 'b54', text: 'Ölçmediğin şeyi geliştiremezsin.', author: 'Peter Drucker’a atfedilir' },
-  { id: 'b55', text: 'Az olsun, öz olsun.', author: 'Atasözü' },
+  { id: 'b01', text: 'We are what we repeatedly do. Excellence, then, is not an act, but a habit.', author: 'Will Durant' },
+  { id: 'b02', text: 'What stands in the way becomes the way.', author: 'Marcus Aurelius' },
+  { id: 'b03', text: 'It is difficulties that show what men are.', author: 'Epictetus' },
+  { id: 'b04', text: 'We suffer more often in imagination than in reality.', author: 'Seneca' },
+  { id: 'b05', text: 'Little by little, a little becomes a lot.', author: 'Tanzanian proverb' },
+  { id: 'b06', text: 'Well begun is half done.', author: 'Aristotle' },
+  { id: 'b07', text: 'The secret of getting ahead is getting started.', author: 'Attributed to Mark Twain' },
+  { id: 'b08', text: 'The best time to plant a tree was 20 years ago. The second best time is now.', author: 'Chinese proverb' },
+  { id: 'b09', text: 'A journey of a thousand miles begins with a single step.', author: 'Lao Tzu' },
+  { id: 'b10', text: 'Discipline is the bridge between goals and accomplishment.', author: 'Jim Rohn' },
+  { id: 'b11', text: 'Success is the sum of small efforts, repeated day in and day out.', author: 'Robert Collier' },
+  { id: 'b12', text: 'You do not rise to the level of your goals. You fall to the level of your systems.', author: 'James Clear' },
+  { id: 'b13', text: 'Every action you take is a vote for the type of person you wish to become.', author: 'James Clear' },
+  { id: 'b14', text: 'First say to yourself what you would be; and then do what you have to do.', author: 'Epictetus' },
+  { id: 'b15', text: 'The soul becomes dyed with the color of its thoughts.', author: 'Marcus Aurelius' },
+  { id: 'b16', text: 'It is not that we have a short time to live, but that we waste a lot of it.', author: 'Seneca' },
+  { id: 'b17', text: 'Motivation is what gets you started. Habit is what keeps you going.', author: 'Jim Ryun' },
+  { id: 'b18', text: 'No man is free who is not master of himself.', author: 'Epictetus' },
+  { id: 'b19', text: 'Without haste, but without rest.', author: 'Goethe' },
+  { id: 'b20', text: 'Perfect is the enemy of good.', author: 'Voltaire' },
+  { id: 'b21', text: 'Do every act of your life as though it were the very last act of your life.', author: 'Marcus Aurelius' },
+  { id: 'b22', text: 'It does not matter how slowly you go as long as you do not stop.', author: 'Attributed to Confucius' },
+  { id: 'b23', text: 'For the things we have to learn before we can do them, we learn by doing them.', author: 'Aristotle' },
+  { id: 'b24', text: 'You don’t have to be great to start, but you have to start to be great.', author: 'Zig Ziglar' },
+  { id: 'b25', text: 'Do the difficult things while they are easy and do the great things while they are small.', author: 'Lao Tzu' },
+  { id: 'b26', text: 'Most powerful is he who has himself in his own power.', author: 'Seneca' },
+  { id: 'b27', text: 'Get one percent better each day and you will be thirty-seven times better in a year.', author: 'James Clear' },
+  { id: 'b28', text: 'Rivers know this: there is no hurry. We shall get there some day.', author: 'A. A. Milne' },
+  { id: 'b29', text: 'Discipline equals freedom.', author: 'Jocko Willink' },
+  { id: 'b30', text: 'Procrastination is the thief of time.', author: 'Edward Young' },
+  { id: 'b31', text: 'Fire tests gold, suffering tests brave men.', author: 'Seneca' },
+  { id: 'b32', text: 'You have power over your mind — not outside events. Realize this, and you will find strength.', author: 'Marcus Aurelius' },
+  { id: 'b33', text: 'Life shrinks or expands in proportion to one’s courage.', author: 'Anaïs Nin' },
+  { id: 'b34', text: 'It always seems impossible until it’s done.', author: 'Attributed to Nelson Mandela' },
+  { id: 'b35', text: 'Time is the scarcest resource, and unless it is managed nothing else can be managed.', author: 'Peter Drucker' },
+  { id: 'b36', text: 'Life is 10% what happens to you and 90% how you react to it.', author: 'Charles R. Swindoll' },
+  { id: 'b37', text: 'Focusing is about saying no.', author: 'Steve Jobs' },
+  { id: 'b38', text: 'We first make our habits, and then our habits make us.', author: 'Attributed to John Dryden' },
+  { id: 'b39', text: 'We must all suffer one of two things: the pain of discipline or the pain of regret.', author: 'Jim Rohn' },
+  { id: 'b40', text: 'Be not afraid of growing slowly; be afraid only of standing still.', author: 'Chinese proverb' },
+  { id: 'b41', text: 'A comfort zone is a beautiful place, but nothing ever grows there.', author: 'Anonymous' },
+  { id: 'b42', text: 'What you do today can improve all your tomorrows.', author: 'Ralph Marston' },
+  { id: 'b43', text: 'Small steps are still steps.', author: 'Anonymous' },
+  { id: 'b44', text: 'Chance favors only the prepared mind.', author: 'Louis Pasteur' },
+  { id: 'b45', text: 'Patience is bitter, but its fruit is sweet.', author: 'Jean-Jacques Rousseau' },
+  { id: 'b46', text: 'There are no shortcuts to any place worth going.', author: 'Beverly Sills' },
+  { id: 'b47', text: 'The ability to perform deep work is becoming increasingly rare at exactly the same time it is becoming increasingly valuable.', author: 'Cal Newport' },
+  { id: 'b48', text: 'Opportunity is missed by most people because it is dressed in overalls and looks like work.', author: 'Attributed to Thomas Edison' },
+  { id: 'b49', text: 'Decide the type of person you want to be. Prove it to yourself with small wins.', author: 'James Clear' },
+  { id: 'b50', text: 'Don’t give up what you want most for what you want now.', author: 'Anonymous' },
+  { id: 'b51', text: 'The first and best victory is to conquer self.', author: 'Plato' },
+  { id: 'b52', text: 'Watch your actions, they become habits; watch your habits, they become your character.', author: 'Anonymous' },
+  { id: 'b53', text: 'The man who moves a mountain begins by carrying away small stones.', author: 'Attributed to Confucius' },
+  { id: 'b54', text: 'What gets measured gets managed.', author: 'Attributed to Peter Drucker' },
+  { id: 'b55', text: 'Simplicity is the ultimate sophistication.', author: 'Attributed to Leonardo da Vinci' },
 ];
 
-/** Küçük, hızlı, tohumlu PRNG. */
+/** Small, fast, seeded PRNG. */
 export function mulberry32(seed) {
   let s = seed >>> 0;
   return function next() {
@@ -90,9 +90,9 @@ function shuffledIndices(n, seed) {
 }
 
 /**
- * Ayarlara göre söz havuzu.
+ * Quote pool for the chosen source.
  * @param {'all'|'mine'|'favorites'} source
- * Seçilen kaynak boşsa (ör. hiç favori yok) tüm sözlere düşer; ekran asla boş kalmaz.
+ * Falls back to all quotes if the chosen source is empty, so the screen is never blank.
  */
 export function quotePool(userQuotes, source, favIds) {
   const all = [...BUILTIN_QUOTES, ...userQuotes];

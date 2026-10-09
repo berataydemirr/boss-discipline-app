@@ -1,4 +1,4 @@
-/* ───────────────────────── Bugün: başlık ───────────────────────── */
+/* ───────────────────────── Today: header ───────────────────────── */
 
 .today-head {
   display: flex;
@@ -25,7 +25,7 @@
   margin-bottom: -2px;
 }
 
-/* ───────────────────────── hafta şeridi ───────────────────────── */
+/* ───────────────────────── week strip ───────────────────────── */
 
 .week-strip {
   display: grid;
@@ -114,7 +114,7 @@
   transform: scale(1.25);
 }
 
-/* ───────────────────────── günün sözü ───────────────────────── */
+/* ───────────────────────── quote of the day ───────────────────────── */
 
 .quote {
   position: relative;
@@ -180,7 +180,7 @@
   fill: currentColor;
 }
 
-/* ───────────────────────── alışkanlıklar ───────────────────────── */
+/* ───────────────────────── habits ───────────────────────── */
 
 .progress-seg {
   display: flex;
@@ -230,7 +230,7 @@
 }
 
 .check::after {
-  /* Daha büyük dokunma alanı */
+  /* Larger touch target */
   content: '';
   position: absolute;
   inset: -8px;
@@ -390,7 +390,7 @@
   content: '– ';
 }
 
-/* —— boş durum —— */
+/* —— empty state —— */
 
 .empty {
   display: grid;
@@ -412,7 +412,7 @@
   margin-top: 4px;
 }
 
-/* ───────────────────────── not ───────────────────────── */
+/* ───────────────────────── note ───────────────────────── */
 
 .note-card {
   border-radius: var(--r-lg);
@@ -449,7 +449,7 @@
   color: var(--text-2);
 }
 
-/* ───────────────────────── günlük ───────────────────────── */
+/* ───────────────────────── journal ───────────────────────── */
 
 .search {
   display: flex;
@@ -544,7 +544,7 @@
   white-space: pre-line;
 }
 
-/* ───────────────────────── alışkanlık yönetimi ───────────────────────── */
+/* ───────────────────────── manage habits ───────────────────────── */
 
 .manage-list {
   display: grid;
@@ -605,7 +605,7 @@
   opacity: 0.5;
 }
 
-/* ───────────────────────── ayarlar ───────────────────────── */
+/* ───────────────────────── settings ───────────────────────── */
 
 .settings .swatches {
   gap: 14px;
@@ -644,7 +644,7 @@
   margin-bottom: 4px;
 }
 
-/* —— kayıtlar —— */
+/* —— logs —— */
 
 .log-list {
   display: grid;

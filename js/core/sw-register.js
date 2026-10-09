@@ -1,10 +1,9 @@
 /**
- * Service worker kaydı ve güncelleme akışı.
+ * Service worker registration and update flow.
  *
- * - Yeni sürüm indirilince kullanıcıya "Yeni sürüm hazır" bildirimi gösterilir;
- *   "Yenile"ye basınca bekleyen worker etkinleşir ve sayfa bir kez yenilenir.
- * - Geliştirme sırasında önbelleği devre dışı bırakmak için: ?nosw=1
- *   (kayıtlı worker'ı ve önbellekleri siler).
+ * - When a new version is downloaded, an "Update available" toast is shown;
+ *   tapping "Reload" activates the waiting worker and reloads the page once.
+ * - To disable caching during development: ?nosw=1 (unregisters the worker and clears caches).
  */
 import { createLogger } from './logger.js';
 import { toast } from '../ui/toast.js';
@@ -13,25 +12,25 @@ const log = createLogger('sw');
 
 export async function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) {
-    log.warn('Service worker desteklenmiyor; çevrimdışı çalışma kapalı');
+    log.warn('Service workers are not supported; offline mode is disabled');
     return null;
   }
 
   if (new URLSearchParams(location.search).has('nosw')) {
     await unregisterAll();
-    log.warn('?nosw: service worker ve önbellekler kaldırıldı');
+    log.warn('?nosw: service worker and caches removed');
     return null;
   }
 
   try {
     const reg = await navigator.serviceWorker.register('./sw.js');
-    log.info('Service worker kayıtlı', { scope: reg.scope });
+    log.info('Service worker registered', { scope: reg.scope });
 
     const promptUpdate = (worker) => {
-      log.info('Yeni sürüm bekliyor');
-      toast('Yeni sürüm hazır.', {
+      log.info('New version waiting');
+      toast('Update available.', {
         duration: 15000,
-        action: { label: 'Yenile', fn: () => worker.postMessage({ type: 'SKIP_WAITING' }) },
+        action: { label: 'Reload', fn: () => worker.postMessage({ type: 'SKIP_WAITING' }) },
       });
     };
 
@@ -41,8 +40,8 @@ export async function registerServiceWorker() {
       const worker = reg.installing;
       if (!worker) return;
       worker.addEventListener('statechange', () => {
-        log.debug('worker durumu', { state: worker.state });
-        // Controller varsa bu bir güncellemedir; yoksa ilk kurulumdur.
+        log.debug('worker state', { state: worker.state });
+        // With an existing controller this is an update; otherwise it is the first install.
         if (worker.state === 'installed' && navigator.serviceWorker.controller) promptUpdate(worker);
       });
     });
@@ -51,17 +50,17 @@ export async function registerServiceWorker() {
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (reloaded) return;
       reloaded = true;
-      log.info('Yeni sürüm etkin, yenileniyor');
+      log.info('New version active, reloading');
       location.reload();
     });
 
-    // Uygulama açıkken arada güncelleme kontrol et.
+    // Check for updates whenever the app comes back to the foreground.
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') reg.update().catch((e) => log.debug('update kontrolü başarısız', e));
+      if (document.visibilityState === 'visible') reg.update().catch((e) => log.debug('Update check failed', e));
     });
     return reg;
   } catch (e) {
-    log.error('Service worker kaydedilemedi', e);
+    log.error('Could not register service worker', e);
     return null;
   }
 }
@@ -72,9 +71,9 @@ export async function unregisterAll() {
     await Promise.all(regs.map((r) => r.unregister()));
     if ('caches' in window) {
       const keys = await caches.keys();
-      await Promise.all(keys.filter((k) => k.startsWith('disiplin-')).map((k) => caches.delete(k)));
+      await Promise.all(keys.filter((k) => k.startsWith('boss-')).map((k) => caches.delete(k)));
     }
   } catch (e) {
-    log.error('Service worker kaldırılamadı', e);
+    log.error('Could not unregister service worker', e);
   }
 }

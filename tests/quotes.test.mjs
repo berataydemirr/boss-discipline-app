@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { BUILTIN_QUOTES, pickForDate, quotePool } from '../js/logic/quotes.js';
 import { addDays } from '../js/core/dates.js';
 
-test('yerleşik sözlerin id değerleri benzersiz ve metinleri dolu', () => {
+test('built-in quote ids are unique and texts are non-empty', () => {
   const ids = BUILTIN_QUOTES.map((q) => q.id);
   assert.equal(new Set(ids).size, ids.length);
   BUILTIN_QUOTES.forEach((q) => {
@@ -12,31 +12,31 @@ test('yerleşik sözlerin id değerleri benzersiz ve metinleri dolu', () => {
   });
 });
 
-test('aynı gün aynı söz', () => {
+test('same day, same quote', () => {
   assert.equal(pickForDate(BUILTIN_QUOTES, '2026-10-09').id, pickForDate(BUILTIN_QUOTES, '2026-10-09').id);
 });
 
-test('bir tur içinde hiçbir söz tekrar etmez', () => {
+test('no quote repeats within a cycle', () => {
   const n = BUILTIN_QUOTES.length;
-  const start = addDays('2024-01-01', n * 7); // bir turun ilk günü
+  const start = addDays('2024-01-01', n * 7); // first day of a cycle
   const seen = new Set();
   for (let i = 0; i < n; i++) seen.add(pickForDate(BUILTIN_QUOTES, addDays(start, i)).id);
   assert.equal(seen.size, n);
 });
 
-test('havuz sırası sonucu etkilemez', () => {
+test('pool order does not affect the result', () => {
   const rev = [...BUILTIN_QUOTES].reverse();
   assert.equal(pickForDate(rev, '2026-03-14').id, pickForDate(BUILTIN_QUOTES, '2026-03-14').id);
 });
 
-test('boş havuz null döner, tek söz her gün gelir', () => {
+test('an empty pool returns null; a single quote is shown every day', () => {
   assert.equal(pickForDate([], '2026-10-09'), null);
   const one = [{ id: 'x', text: 'a', author: '' }];
   assert.equal(pickForDate(one, '2020-01-01').id, 'x');
 });
 
-test('kaynak filtresi boşsa tüm sözlere düşer', () => {
-  const mine = [{ id: 'u-1', text: 'Benim', author: '' }];
+test('an empty source falls back to all quotes', () => {
+  const mine = [{ id: 'u-1', text: 'Mine', author: '' }];
   assert.equal(quotePool([], 'mine', []).length, BUILTIN_QUOTES.length);
   assert.deepEqual(quotePool(mine, 'mine', []), mine);
   assert.equal(quotePool(mine, 'favorites', ['b01', 'u-1']).length, 2);

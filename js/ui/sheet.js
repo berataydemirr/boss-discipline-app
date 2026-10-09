@@ -1,9 +1,8 @@
 /**
- * Alttan açılan panel (bottom sheet) ve onay penceresi.
+ * Bottom sheet and confirm dialog.
  *
- * Telefonun "geri" tuşu/hareketi paneli kapatsın diye her panel tarayıcı geçmişine
- * bir kayıt ekler. Paneller yığın olarak tutulur; iç içe açılmış bir onay penceresi
- * kapandığında yalnızca o kapanır.
+ * Each sheet pushes a history entry so the phone's back button/gesture closes it.
+ * Sheets are kept on a stack; closing a nested confirm dialog closes only that dialog.
  */
 import { h } from './dom.js';
 import { icon } from './icons.js';
@@ -15,7 +14,7 @@ let seq = 0;
 
 window.addEventListener('popstate', (e) => {
   const cur = e.state?.sheet ?? null;
-  // Geçmişte artık karşılığı olmayan (üstteki) panelleri kapat.
+  // Close every sheet above the one that matches the current history entry.
   while (stack.length && stack[stack.length - 1].id !== cur) {
     stack[stack.length - 1].finish();
   }
@@ -35,13 +34,13 @@ export function openSheet({ title, build, onClose, className = '' }) {
   const body = h('div', { class: 'sheet-body' });
   const panel = h(
     'div',
-    { class: `sheet ${className}`.trim(), role: 'dialog', 'aria-modal': 'true', 'aria-label': title || 'Pencere' },
+    { class: `sheet ${className}`.trim(), role: 'dialog', 'aria-modal': 'true', 'aria-label': title || 'Dialog' },
     h('div', { class: 'sheet-grip', 'aria-hidden': 'true' }),
     h(
       'header',
       { class: 'sheet-head' },
       h('h2', { class: 'sheet-title' }, title ?? ''),
-      h('button', { class: 'btn-icon', 'aria-label': 'Kapat', onclick: () => close() }, icon('close')),
+      h('button', { class: 'btn-icon', 'aria-label': 'Close', onclick: () => close() }, icon('close')),
     ),
     body,
   );
@@ -60,16 +59,16 @@ export function openSheet({ title, build, onClose, className = '' }) {
     wrap.classList.remove('open');
     setTimeout(() => wrap.remove(), 280);
     if (!stack.length) document.body.classList.remove('no-scroll');
-    log.debug('kapandı', { id, title });
+    log.debug('closed', { id, title });
     try {
       onClose?.();
     } catch (e) {
-      log.error('onClose hatası', e);
+      log.error('onClose error', e);
     }
     resolveClosed();
   }
 
-  /** Paneli kapatır; geçmiş kaydı da geri alınır. Kapanınca çözülen bir Promise döner. */
+  /** Closes the sheet and rewinds its history entry. Returns a Promise resolved once closed. */
   function close() {
     if (!closed) {
       if (history.state?.sheet === id) history.back(); // popstate → finish()
@@ -83,8 +82,8 @@ export function openSheet({ title, build, onClose, className = '' }) {
     const content = build(api);
     if (content) body.append(content);
   } catch (e) {
-    log.error('Panel içeriği oluşturulamadı', e);
-    body.append(h('p', { class: 'muted' }, 'Bu içerik yüklenemedi.'));
+    log.error('Could not build sheet content', e);
+    body.append(h('p', { class: 'muted' }, 'This content could not be loaded.'));
   }
 
   root.append(wrap);
@@ -94,12 +93,12 @@ export function openSheet({ title, build, onClose, className = '' }) {
   document.addEventListener('keydown', onKey);
   requestAnimationFrame(() => requestAnimationFrame(() => wrap.classList.add('open')));
   setTimeout(() => panel.querySelector('[autofocus]')?.focus(), 320);
-  log.debug('açıldı', { id, title });
+  log.debug('opened', { id, title });
   return api;
 }
 
-/** Evet/hayır onayı. true/false ile çözülür. */
-export function confirmDialog({ title, message, confirmLabel = 'Onayla', cancelLabel = 'Vazgeç', danger = false }) {
+/** Yes/no confirmation. Resolves to true/false. */
+export function confirmDialog({ title, message, confirmLabel = 'Confirm', cancelLabel = 'Cancel', danger = false }) {
   return new Promise((resolve) => {
     let answer = false;
     openSheet({

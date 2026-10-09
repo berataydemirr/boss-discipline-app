@@ -1,6 +1,6 @@
 /**
- * Ayarlar: görünüm, sözler, geliştirici araçları.
- * #/settings/logs → kayıt panelini doğrudan açar (hata bildirimlerindeki "Ayrıntı" bağlantısı).
+ * Settings: appearance, habits, quotes, reminders, focus, data, developer tools.
+ * #/settings/logs → opens the log viewer directly (the "Details" link on error toasts).
  */
 import { h, copyText } from '../ui/dom.js';
 import { icon } from '../ui/icons.js';
@@ -20,7 +20,7 @@ const log = createLogger('settings');
 
 export function render({ params }) {
   if (params[0] === 'logs') {
-    // Sayfa çizildikten sonra paneli aç; URL'yi sadeleştir ki yenilemede tekrar açılmasın.
+    // Open the sheet after rendering; simplify the URL so a reload doesn't reopen it.
     history.replaceState(history.state, '', '#/settings');
     setTimeout(openLogs, 0);
   }
@@ -29,18 +29,18 @@ export function render({ params }) {
   return h(
     'div',
     { class: 'page settings' },
-    h('header', { class: 'page-head' }, h('p', { class: 'eyebrow' }, 'BOSS'), h('h1', { class: 'display' }, 'Ayarlar')),
+    h('header', { class: 'page-head' }, h('p', { class: 'eyebrow' }, 'BOSS'), h('h1', { class: 'display' }, 'Settings')),
 
     group(
-      'Görünüm',
+      'Appearance',
       row(
-        'Tema',
+        'Theme',
         null,
         segmented(
           [
-            ['system', 'Sistem'],
-            ['dark', 'Koyu'],
-            ['light', 'Açık'],
+            ['system', 'System'],
+            ['dark', 'Dark'],
+            ['light', 'Light'],
           ],
           s.theme,
           (v) => setAndApply('theme', v),
@@ -48,7 +48,7 @@ export function render({ params }) {
         true,
       ),
       row(
-        'Vurgu rengi',
+        'Accent color',
         null,
         h(
           'div',
@@ -68,8 +68,8 @@ export function render({ params }) {
     ),
 
     group(
-      'Alışkanlıklar',
-      linkRow('Alışkanlıkları yönet', `${store.habits().length} aktif · ${store.archivedHabits().length} arşivde`, () => navigate('habits')),
+      'Habits',
+      linkRow('Manage habits', `${store.habits().length} active · ${store.archivedHabits().length} archived`, () => navigate('habits')),
     ),
 
     quotesGroup(),
@@ -78,34 +78,25 @@ export function render({ params }) {
     dataGroup(),
 
     group(
-      'Geliştirici',
+      'Developer',
       row(
-        'Debug modu',
-        'Ayrıntılı kayıt tutar ve konsola yazar.',
+        'Debug mode',
+        'Keeps detailed logs and writes them to the console.',
         toggle(isDebug(), (on) => {
           setDebug(on);
-          toast(on ? 'Debug modu açık' : 'Debug modu kapalı');
+          toast(on ? 'Debug mode on' : 'Debug mode off');
         }),
       ),
-      linkRow('Kayıtlar', `${getLogs().length} kayıt`, openLogs),
-      row(
-        'Depolama',
-        store.isPersistent ? 'IndexedDB · veriler bu cihazda saklanıyor' : 'Bellek · veriler KALICI DEĞİL (gizli sekme olabilir)',
-        null,
-      ),
-      linkRow('Önbelleği temizle ve yenile', 'Uygulama eski sürümde takılırsa', async () => {
-        if (!(await confirmDialog({ title: 'Önbellek temizlensin mi?', message: 'Verilerin silinmez; uygulama dosyaları yeniden indirilir.', confirmLabel: 'Temizle' }))) return;
+      linkRow('Logs', `${getLogs().length} entries`, openLogs),
+      row('Storage', store.isPersistent ? 'IndexedDB · data is stored on this device' : 'Memory · data is NOT persisted (possibly a private tab)', null),
+      linkRow('Clear cache and reload', 'If the app gets stuck on an old version', async () => {
+        if (!(await confirmDialog({ title: 'Clear the cache?', message: 'Your data is kept; the app files are downloaded again.', confirmLabel: 'Clear' }))) return;
         await unregisterAll();
         location.reload();
       }),
     ),
 
-    h(
-      'footer',
-      { class: 'about' },
-      h('p', { class: 'serif about-name' }, 'BOSS'),
-      h('p', { class: 'faint small num' }, `Sürüm ${self.DISIPLIN_VERSION}`),
-    ),
+    h('footer', { class: 'about' }, h('p', { class: 'serif about-name' }, 'BOSS'), h('p', { class: 'faint small num' }, `Version ${self.BOSS_VERSION}`)),
   );
 }
 
@@ -118,18 +109,18 @@ async function setAndApply(key, value) {
   }
 }
 
-/* ───────────────────────── hatırlatıcılar (v3) ───────────────────────── */
+/* ───────────────────────── reminders ───────────────────────── */
 
 function permissionText() {
   const p = reminders.permission();
   if (p === 'unsupported') {
     return reminders.isIOS() && !reminders.isStandalone()
-      ? 'iPhone’da bildirim için önce Safari › Paylaş › Ana Ekrana Ekle ile kur, oradan aç.'
-      : 'Bu tarayıcı bildirimleri desteklemiyor; hatırlatmalar uygulama içinde görünür.';
+      ? 'On iPhone, install the app first (Safari › Share › Add to Home Screen) and open it from there.'
+      : 'This browser does not support notifications; reminders appear inside the app.';
   }
-  if (p === 'granted') return 'Bildirim izni verildi.';
-  if (p === 'denied') return 'Bildirim izni reddedildi; tarayıcı ayarlarından açabilirsin. Hatırlatmalar uygulama içinde görünür.';
-  return 'Açınca bildirim izni istenecek.';
+  if (p === 'granted') return 'Notifications allowed.';
+  if (p === 'denied') return 'Notifications blocked; you can allow them in browser settings. Reminders appear inside the app.';
+  return 'You will be asked for notification permission.';
 }
 
 function timeInput(key) {
@@ -137,7 +128,7 @@ function timeInput(key) {
     class: 'input input-time',
     type: 'time',
     value: store.settings[key] ?? '',
-    'aria-label': key === 'morningTime' ? 'Sabah hatırlatma saati' : 'Akşam hatırlatma saati',
+    'aria-label': key === 'morningTime' ? 'Morning reminder time' : 'Evening reminder time',
     onchange: (e) => store.setSetting(key, e.target.value || null).catch(showError),
   });
 }
@@ -145,9 +136,9 @@ function timeInput(key) {
 function remindersGroup() {
   const s = store.settings;
   return group(
-    'Hatırlatıcılar',
+    'Reminders',
     row(
-      'Hatırlatıcılar',
+      'Reminders',
       permissionText(),
       toggle(s.remindersEnabled, async (on) => {
         try {
@@ -156,7 +147,7 @@ function remindersGroup() {
             await store.setSetting('remindersEnabled', true);
             reminders.startReminders();
             if (p === 'granted') reminders.registerPeriodicSync();
-            toast(p === 'granted' ? 'Hatırlatıcılar açık' : 'Hatırlatıcılar uygulama içinde gösterilecek');
+            toast(p === 'granted' ? 'Reminders on' : 'Reminders will appear inside the app');
           } else {
             await store.setSetting('remindersEnabled', false);
             reminders.stopReminders();
@@ -167,25 +158,25 @@ function remindersGroup() {
         }
       }),
     ),
-    s.remindersEnabled && row('Sabah · öncelikler', 'Öncelikleri yazmadıysan hatırlatır.', timeInput('morningTime')),
-    s.remindersEnabled && row('Akşam · değerlendirme', 'Günü değerlendirmediysen hatırlatır.', timeInput('eveningTime')),
+    s.remindersEnabled && row('Morning · priorities', 'Reminds you if you haven’t written your priorities.', timeInput('morningTime')),
+    s.remindersEnabled && row('Evening · review', 'Reminds you if you haven’t reviewed your day.', timeInput('eveningTime')),
     s.remindersEnabled &&
-      linkRow('Deneme bildirimi', 'Alışkanlık hatırlatma saatini alışkanlığı düzenlerken seçersin.', async () => {
+      linkRow('Test notification', 'Set a habit’s reminder time when editing the habit.', async () => {
         try {
           if (reminders.permission() === 'granted') {
             const reg = await navigator.serviceWorker.ready;
-            await reg.showNotification('BOSS', { body: 'Hatırlatıcılar çalışıyor.', icon: './icons/icon-192.png', tag: 'disiplin-test' });
+            await reg.showNotification('BOSS', { body: 'Reminders are working.', icon: './icons/icon-192.png', tag: 'boss-test' });
           } else {
-            toast('BOSS — Hatırlatıcılar çalışıyor (uygulama içi).');
+            toast('BOSS — Reminders are working (in-app).');
           }
         } catch (e) {
-          showError(e, 'Bildirim gösterilemedi.');
+          showError(e, 'Could not show the notification.');
         }
       }),
   );
 }
 
-/* ───────────────────────── odak (v3) ───────────────────────── */
+/* ───────────────────────── focus ───────────────────────── */
 
 function stepper(key, { min, max, unit }) {
   const v = store.settings[key];
@@ -193,37 +184,37 @@ function stepper(key, { min, max, unit }) {
   return h(
     'div',
     { class: 'stepper' },
-    h('button', { class: 'btn-icon btn-icon-sm', 'aria-label': 'Azalt', disabled: v <= min, onclick: () => set(v - (v > 10 ? 5 : 1)) }, '−'),
+    h('button', { class: 'btn-icon btn-icon-sm', 'aria-label': 'Decrease', disabled: v <= min, onclick: () => set(v - (v > 10 ? 5 : 1)) }, '−'),
     h('span', { class: 'stepper-value num' }, `${v}${unit ? ` ${unit}` : ''}`),
-    h('button', { class: 'btn-icon btn-icon-sm', 'aria-label': 'Artır', disabled: v >= max, onclick: () => set(v + (v >= 10 ? 5 : 1)) }, '+'),
+    h('button', { class: 'btn-icon btn-icon-sm', 'aria-label': 'Increase', disabled: v >= max, onclick: () => set(v + (v >= 10 ? 5 : 1)) }, '+'),
   );
 }
 
 function focusGroup() {
   return group(
-    'Odak',
-    row('Odak süresi', null, stepper('focusMinutes', { min: 5, max: 180, unit: 'dk' })),
-    row('Kısa mola', null, stepper('shortBreak', { min: 1, max: 60, unit: 'dk' })),
-    row('Uzun mola', null, stepper('longBreak', { min: 5, max: 90, unit: 'dk' })),
-    row('Uzun mola sıklığı', 'Kaç odak oturumunda bir', stepper('longEvery', { min: 2, max: 8 })),
+    'Focus',
+    row('Focus length', null, stepper('focusMinutes', { min: 5, max: 180, unit: 'min' })),
+    row('Short break', null, stepper('shortBreak', { min: 1, max: 60, unit: 'min' })),
+    row('Long break', null, stepper('longBreak', { min: 5, max: 90, unit: 'min' })),
+    row('Long break every', 'Number of focus sessions', stepper('longEvery', { min: 2, max: 8 })),
     row(
-      'Bitince işaretle',
-      'Odak bitince bağlı alışkanlığı bugün için işaretler.',
+      'Check off when done',
+      'When a focus session ends, check off the linked habit for today.',
       toggle(store.settings.focusAutoCheck, (on) => store.setSetting('focusAutoCheck', on).catch(showError)),
     ),
   );
 }
 
-/* ───────────────────────── veri (v3) ───────────────────────── */
+/* ───────────────────────── data ───────────────────────── */
 
 function dataGroup() {
   const last = store.settings.lastExportAt;
   const staleDays = last ? Math.floor((Date.now() - last) / 86400000) : null;
   const persistHint = h('span', { class: 'list-hint' }, '…');
   storageInfo().then((i) => {
-    const used = i.usage != null ? `${(i.usage / 1024 / 1024).toFixed(1)} MB kullanılıyor` : '';
+    const used = i.usage != null ? `${(i.usage / 1024 / 1024).toFixed(1)} MB used` : '';
     persistHint.textContent =
-      i.persisted === true ? `Kalıcı · ${used}` : i.persisted === false ? `Tarayıcı yer açmak için silebilir · ${used}` : 'Bilinmiyor';
+      i.persisted === true ? `Persistent · ${used}` : i.persisted === false ? `The browser may clear it to free space · ${used}` : 'Unknown';
   });
 
   const fileInput = h('input', {
@@ -237,55 +228,55 @@ function dataGroup() {
       try {
         const obj = await readBackupFile(file);
         const c = obj?.counts ?? {};
-        const when = obj?.exportedAt ? formatLong(toKey(new Date(obj.exportedAt))) : 'bilinmeyen tarih';
+        const when = obj?.exportedAt ? formatLong(toKey(new Date(obj.exportedAt))) : 'an unknown date';
         const ok = await confirmDialog({
-          title: 'Yedek geri yüklensin mi?',
-          message: `${when} tarihli yedek: ${c.habits ?? '?'} alışkanlık, ${c.checks ?? '?'} işaret, ${c.days ?? '?'} gün. Bu cihazdaki mevcut verilerin YERİNE geçecek.`,
-          confirmLabel: 'Geri yükle',
+          title: 'Restore this backup?',
+          message: `Backup from ${when}: ${c.habits ?? '?'} habits, ${c.checks ?? '?'} check-ins, ${c.days ?? '?'} days. It will REPLACE all data on this device.`,
+          confirmLabel: 'Restore',
           danger: true,
         });
         if (!ok) return;
         const { counts, skipped } = await importBackup(obj);
         resetTodayDrafts();
-        toast(`${counts.habits} alışkanlık, ${counts.checks} işaret geri yüklendi${skipped ? ` · ${skipped} bozuk kayıt atlandı` : ''}.`, { duration: 5000 });
+        toast(`Restored ${counts.habits} habits and ${counts.checks} check-ins${skipped ? ` · skipped ${skipped} broken records` : ''}.`, { duration: 5000 });
       } catch (err) {
-        showError(err, 'Yedek geri yüklenemedi.');
+        showError(err, 'Could not restore the backup.');
       }
     },
   });
 
   return group(
-    'Veri',
+    'Data',
     linkRow(
-      'Yedeği dışa aktar',
-      last ? `Son yedek ${staleDays === 0 ? 'bugün' : `${staleDays} gün önce`}` : 'Henüz yedek alınmadı. Veriler yalnızca bu cihazda.',
+      'Export backup',
+      last ? `Last backup ${staleDays === 0 ? 'today' : `${staleDays} days ago`}` : 'No backup yet. Your data only lives on this device.',
       async () => {
         try {
           const r = await exportToFile();
-          if (r !== 'cancelled') toast('Yedek hazır');
+          if (r !== 'cancelled') toast('Backup ready');
         } catch (e) {
-          showError(e, 'Yedek alınamadı.');
+          showError(e, 'Could not create the backup.');
         }
       },
     ),
-    linkRow('Yedekten geri yükle', 'JSON yedek dosyası seç', () => fileInput.click()),
+    linkRow('Restore from backup', 'Choose a JSON backup file', () => fileInput.click()),
     fileInput,
     h(
       'div',
       { class: 'list-row' },
-      h('div', { class: 'list-text' }, h('span', { class: 'list-title' }, 'Kalıcı depolama'), persistHint),
+      h('div', { class: 'list-text' }, h('span', { class: 'list-title' }, 'Persistent storage'), persistHint),
       h(
         'button',
         {
           class: 'btn btn-ghost btn-sm',
           onclick: async () => {
             const ok = await requestPersistence();
-            toast(ok ? 'Veriler kalıcı olarak işaretlendi' : 'Tarayıcı izin vermedi (uygulamayı ana ekrana eklemek yardımcı olur)');
+            toast(ok ? 'Data marked as persistent' : 'The browser declined (installing the app to the home screen helps)');
             const i = await storageInfo();
-            persistHint.textContent = i.persisted ? 'Kalıcı' : 'Tarayıcı yer açmak için silebilir';
+            persistHint.textContent = i.persisted ? 'Persistent' : 'The browser may clear it to free space';
           },
         },
-        'İste',
+        'Request',
       ),
     ),
     h(
@@ -294,61 +285,61 @@ function dataGroup() {
         class: 'list-row is-link text-danger',
         onclick: async () => {
           const first = await confirmDialog({
-            title: 'Tüm veriler silinsin mi?',
-            message: 'Alışkanlıklar, işaretler, notlar, hedefler ve ayarlar silinir. Önce yedek almanı öneririm.',
-            confirmLabel: 'Devam',
+            title: 'Delete all data?',
+            message: 'Habits, check-ins, notes, goals and settings will be deleted. Export a backup first.',
+            confirmLabel: 'Continue',
             danger: true,
           });
           if (!first) return;
-          const second = await confirmDialog({ title: 'Emin misin?', message: 'Bu işlem geri alınamaz.', confirmLabel: 'Hepsini sil', danger: true });
+          const second = await confirmDialog({ title: 'Are you sure?', message: 'This cannot be undone.', confirmLabel: 'Delete everything', danger: true });
           if (!second) return;
           try {
             await store.resetAll();
             resetTodayDrafts();
-            toast('Tüm veriler silindi');
+            toast('All data deleted');
             navigate('today');
           } catch (e) {
             showError(e);
           }
         },
       },
-      h('div', { class: 'list-text' }, h('span', { class: 'list-title' }, 'Tüm verileri sil')),
+      h('div', { class: 'list-text' }, h('span', { class: 'list-title' }, 'Delete all data')),
     ),
   );
 }
 
-/* ───────────────────────── sözler ───────────────────────── */
+/* ───────────────────────── quotes ───────────────────────── */
 
 function quotesGroup() {
   const s = store.settings;
   const mine = store.userQuotes();
   return group(
-    'Günün sözü',
+    'Quote of the day',
     row(
-      'Kaynak',
+      'Source',
       s.quoteSource === 'favorites' && !s.favQuotes.length
-        ? 'Henüz favori yok; tüm sözler gösteriliyor.'
+        ? 'No favorites yet; showing all quotes.'
         : s.quoteSource === 'mine' && !mine.length
-          ? 'Henüz kendi sözün yok; tüm sözler gösteriliyor.'
+          ? 'No quotes of your own yet; showing all quotes.'
           : null,
       segmented(
         [
-          ['all', 'Hepsi'],
-          ['favorites', 'Favoriler'],
-          ['mine', 'Benimkiler'],
+          ['all', 'All'],
+          ['favorites', 'Favorites'],
+          ['mine', 'Mine'],
         ],
         s.quoteSource,
         (v) => store.setSetting('quoteSource', v).catch(showError),
       ),
       true,
     ),
-    linkRow('Kendi sözlerim', `${mine.length} söz`, openQuotes),
+    linkRow('My quotes', `${mine.length} ${mine.length === 1 ? 'quote' : 'quotes'}`, openQuotes),
   );
 }
 
 function openQuotes() {
   openSheet({
-    title: 'Kendi sözlerim',
+    title: 'My quotes',
     build: () => {
       const list = h('ul', { class: 'quote-list' });
       const fill = () => {
@@ -364,9 +355,9 @@ function openQuotes() {
                     'button',
                     {
                       class: 'btn-icon btn-icon-sm',
-                      'aria-label': 'Sil',
+                      'aria-label': 'Delete',
                       onclick: async () => {
-                        if (!(await confirmDialog({ title: 'Söz silinsin mi?', confirmLabel: 'Sil', danger: true }))) return;
+                        if (!(await confirmDialog({ title: 'Delete this quote?', confirmLabel: 'Delete', danger: true }))) return;
                         await store.deleteQuote(q.id).catch(showError);
                         fill();
                       },
@@ -375,11 +366,11 @@ function openQuotes() {
                   ),
                 ),
               )
-            : [h('li', { class: 'muted small pad-y' }, 'Sana iyi gelen bir cümleyi ekle; günün sözü olarak karşına çıksın.')]),
+            : [h('li', { class: 'muted small pad-y' }, 'Add a line that speaks to you; it will show up as the quote of the day.')]),
         );
       };
-      const text = h('textarea', { class: 'input', rows: 3, maxlength: 400, placeholder: 'Söz', autofocus: true });
-      const author = h('input', { class: 'input', type: 'text', maxlength: 80, placeholder: 'Kimin? (isteğe bağlı)' });
+      const text = h('textarea', { class: 'input', rows: 3, maxlength: 400, placeholder: 'Quote', autofocus: true });
+      const author = h('input', { class: 'input', type: 'text', maxlength: 80, placeholder: 'Author (optional)' });
       fill();
       return h(
         'div',
@@ -394,7 +385,7 @@ function openQuotes() {
                 await store.addQuote({ text: text.value, author: author.value });
                 text.value = '';
                 author.value = '';
-                toast('Söz eklendi');
+                toast('Quote added');
                 fill();
               } catch (err) {
                 showError(err);
@@ -403,7 +394,7 @@ function openQuotes() {
           },
           text,
           author,
-          h('button', { class: 'btn btn-primary btn-block', type: 'submit' }, 'Ekle'),
+          h('button', { class: 'btn btn-primary btn-block', type: 'submit' }, 'Add'),
         ),
         list,
       );
@@ -411,20 +402,20 @@ function openQuotes() {
   });
 }
 
-/* ───────────────────────── kayıtlar ───────────────────────── */
+/* ───────────────────────── logs ───────────────────────── */
 
 function openLogs() {
   let level = 'all';
   let unsubscribe = null;
   openSheet({
-    title: 'Kayıtlar',
+    title: 'Logs',
     className: 'sheet-tall',
     onClose: () => unsubscribe?.(),
     build: ({ close }) => {
       const list = h('ol', { class: 'log-list' });
       const fill = () => {
         const entries = getLogs()
-          .filter((e) => level === 'all' || (level === 'problems' ? e.lvl === 'warn' || e.lvl === 'error' : true))
+          .filter((e) => level === 'all' || e.lvl === 'warn' || e.lvl === 'error')
           .reverse();
         list.replaceChildren(
           ...(entries.length
@@ -437,7 +428,7 @@ function openLogs() {
                   h('span', { class: 'log-msg' }, h('b', null, `[${e.mod}] `), e.msg, e.data && h('code', { class: 'log-data' }, e.data)),
                 ),
               )
-            : [h('li', { class: 'muted small pad-y' }, 'Kayıt yok.')]),
+            : [h('li', { class: 'muted small pad-y' }, 'No entries.')]),
         );
       };
       unsubscribe = onLog(() => fill());
@@ -451,8 +442,8 @@ function openLogs() {
           { class: 'btn-row wrap' },
           segmented(
             [
-              ['all', 'Tümü'],
-              ['problems', 'Sorunlar'],
+              ['all', 'All'],
+              ['problems', 'Problems'],
             ],
             level,
             (v, seg) => {
@@ -466,47 +457,47 @@ function openLogs() {
             {
               class: 'btn btn-ghost btn-sm',
               onclick: async () => {
-                const report = `BOSS ${self.DISIPLIN_VERSION}\n${navigator.userAgent}\n\n${formatLogs()}`;
-                toast((await copyText(report)) ? 'Kayıtlar kopyalandı' : 'Kopyalanamadı');
+                const report = `BOSS ${self.BOSS_VERSION}\n${navigator.userAgent}\n\n${formatLogs()}`;
+                toast((await copyText(report)) ? 'Logs copied' : 'Could not copy');
               },
             },
             icon('copy', { size: 16 }),
-            'Kopyala',
+            'Copy',
           ),
           h(
             'button',
             {
               class: 'btn btn-ghost btn-sm',
               onclick: () => {
-                console.log('[disiplin] durum', store.debugSnapshot());
-                toast('Durum konsola yazıldı');
+                console.log('[boss] state', store.debugSnapshot());
+                toast('State written to the console');
               },
             },
             icon('bug', { size: 16 }),
-            'Durum',
+            'State',
           ),
           h(
             'button',
             {
               class: 'btn btn-quiet btn-sm text-danger',
               onclick: async () => {
-                if (!(await confirmDialog({ title: 'Tüm kayıtlar silinsin mi?', confirmLabel: 'Temizle', danger: true }))) return;
+                if (!(await confirmDialog({ title: 'Clear all logs?', confirmLabel: 'Clear', danger: true }))) return;
                 clearLogs();
-                log.info('Kayıtlar temizlendi');
+                log.info('Logs cleared');
                 fill();
               },
             },
-            'Temizle',
+            'Clear',
           ),
         ),
         list,
-        h('button', { class: 'btn btn-ghost btn-block', onclick: () => close() }, 'Kapat'),
+        h('button', { class: 'btn btn-ghost btn-block', onclick: () => close() }, 'Close'),
       );
     },
   });
 }
 
-/* ───────────────────────── küçük bileşenler ───────────────────────── */
+/* ───────────────────────── small components ───────────────────────── */
 
 export function group(title, ...rows) {
   return h(
@@ -517,7 +508,7 @@ export function group(title, ...rows) {
   );
 }
 
-/** stacked=true: kontrol başlığın altına yerleşir (dar ekranda daha rahat). */
+/** stacked=true: the control sits below the title (more room on narrow screens). */
 export function row(title, hint, control, stacked = false) {
   return h(
     'div',

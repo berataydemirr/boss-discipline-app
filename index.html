@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="tr" data-theme="dark" data-accent="ember">
+<html lang="en" data-theme="dark" data-accent="ember">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>BOSS</title>
-    <meta name="description" content="BOSS — kişisel disiplin ve alışkanlık takibi" />
+    <meta name="description" content="BOSS — personal discipline and habit tracker" />
     <meta name="theme-color" content="#11100e" />
     <meta name="color-scheme" content="dark light" />
 
@@ -17,11 +17,11 @@
     <meta name="apple-mobile-web-app-title" content="BOSS" />
 
     <script>
-      // Tema flaşını önle: CSS'ten önce kayıtlı temayı uygula.
+      // Avoid a theme flash: apply the saved theme before CSS loads.
       (function () {
         try {
-          var t = localStorage.getItem('disiplin:theme') || 'system';
-          var a = localStorage.getItem('disiplin:accent') || 'ember';
+          var t = localStorage.getItem('boss:theme') || 'system';
+          var a = localStorage.getItem('boss:accent') || 'ember';
           if (t === 'system') t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
           document.documentElement.dataset.theme = t;
           document.documentElement.dataset.accent = a;
@@ -52,12 +52,12 @@
       <main id="view" class="view" tabindex="-1">
         <div class="boot" aria-hidden="true"></div>
       </main>
-      <nav id="tabbar" class="tabbar" aria-label="Ana menü"></nav>
+      <nav id="tabbar" class="tabbar" aria-label="Main navigation"></nav>
     </div>
     <div id="sheet-root"></div>
     <div id="toast-root" aria-live="polite"></div>
     <noscript>
-      <p style="padding: 24px; font-family: system-ui">BOSS çalışmak için JavaScript'e ihtiyaç duyar.</p>
+      <p style="padding: 24px; font-family: system-ui">BOSS needs JavaScript to run.</p>
     </noscript>
   </body>
 </html>

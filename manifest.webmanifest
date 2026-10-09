@@ -1,8 +1,8 @@
 {
   "name": "BOSS",
   "short_name": "BOSS",
-  "description": "BOSS — kişisel disiplin ve alışkanlık takibi",
-  "lang": "tr",
+  "description": "BOSS — personal discipline and habit tracker",
+  "lang": "en",
   "dir": "ltr",
   "id": "./",
   "start_url": "./",
@@ -19,10 +19,10 @@
     { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
   ],
   "shortcuts": [
-    { "name": "Bugün", "url": "./#/today" },
-    { "name": "Odak", "url": "./#/focus" },
+    { "name": "Today", "url": "./#/today" },
+    { "name": "Focus", "url": "./#/focus" },
     { "name": "Plan", "url": "./#/plan" },
-    { "name": "Analiz", "url": "./#/stats" },
-    { "name": "Günlük", "url": "./#/journal" }
+    { "name": "Stats", "url": "./#/stats" },
+    { "name": "Journal", "url": "./#/journal" }
   ]
 }

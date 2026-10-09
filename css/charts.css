@@ -1,14 +1,14 @@
 /*
- * Grafikler ve sayı kutuları.
- * Yoğunluk skalası: tek ton (vurgu rengi), yüzeyle karıştırılarak 4 adım.
- * Koyu temada adımlar açıklaşır, açık temada koyulaşır — her iki temada da tekdüze artar.
+ * Charts and stat tiles.
+ * Intensity scale: a single hue (the accent) mixed with the surface in 4 steps.
+ * Steps get lighter in the dark theme and darker in the light one — monotonic in both.
  */
 
 .chart {
   position: relative;
 }
 
-/* ───────────────────────── ipucu ───────────────────────── */
+/* ───────────────────────── tooltip ───────────────────────── */
 
 .chart-tip {
   position: absolute;
@@ -31,7 +31,7 @@
   opacity: 1;
 }
 
-/* ───────────────────────── ısı haritası ───────────────────────── */
+/* ───────────────────────── heatmap ───────────────────────── */
 
 .heatmap {
   --hm: var(--accent);
@@ -157,7 +157,7 @@
   --cell: 10px;
 }
 
-/* ───────────────────────── sütunlar ───────────────────────── */
+/* ───────────────────────── columns ───────────────────────── */
 
 .columns {
   --plot-h: 120px;
@@ -199,7 +199,7 @@
   position: relative;
   display: flex;
   gap: 2px;
-  padding-right: 26px; /* eksen etiketlerine yer */
+  padding-right: 26px; /* room for axis labels */
 }
 
 .col {
@@ -338,7 +338,7 @@
   color: var(--text-3);
 }
 
-/* ───────────────────────── sayı kutuları ───────────────────────── */
+/* ───────────────────────── stat tiles ───────────────────────── */
 
 .stat-row {
   display: grid;
@@ -379,7 +379,7 @@
   white-space: nowrap;
 }
 
-/* ───────────────────────── ölçer ───────────────────────── */
+/* ───────────────────────── meter ───────────────────────── */
 
 .meter {
   --c: var(--accent);

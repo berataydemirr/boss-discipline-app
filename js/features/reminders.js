@@ -1,12 +1,12 @@
 /**
- * Hatırlatıcılar.
+ * Reminders.
  *
- * Gerçekçi sınırlar (PWA, sunucusuz):
- * - Uygulama açıkken: her 30 sn kontrol edilir, zamanı gelen hatırlatma bildirim olarak gösterilir.
- * - Uygulama kapalıyken: Android'de Chrome ile kurulmuş uygulamada "Periodic Background Sync"
- *   destekleniyorsa service worker yaklaşık saatlik kontrol yapar (zamanlamayı tarayıcı belirler).
- * - iPhone'da arka plan kontrolü yok; hatırlatma uygulama açıldığında gösterilir.
- * Kesin saatli, uygulama kapalıyken gelen bildirim için bir push sunucusu gerekir.
+ * Realistic limits (PWA, no server):
+ * - While the app is open: checked every 30 s; due reminders are shown as notifications.
+ * - While the app is closed: on Android with the app installed via Chrome, if Periodic
+ *   Background Sync is available the service worker checks roughly hourly (the browser decides).
+ * - iPhone has no background checks; reminders appear when the app is opened.
+ * Exact-time notifications while the app is closed require a push server.
  */
 import { store } from '../core/store.js';
 import { createLogger } from '../core/logger.js';
@@ -15,11 +15,11 @@ import { toast } from '../ui/toast.js';
 
 const log = createLogger('reminders');
 const META_KEY = 'reminderLog';
-const SYNC_TAG = 'disiplin-reminders';
+const SYNC_TAG = 'boss-reminders';
 let timer = null;
 let running = false;
 
-const core = () => self.DisiplinReminders;
+const core = () => self.BossReminders;
 
 export function notificationsSupported() {
   return 'Notification' in window && 'serviceWorker' in navigator;
@@ -37,38 +37,38 @@ export function isStandalone() {
   return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 }
 
-/** Kullanıcı hareketiyle (düğme) çağrılmalı. 'granted' | 'denied' | 'default' | 'unsupported' döner. */
+/** Must be called from a user gesture (button). Resolves to 'granted' | 'denied' | 'default' | 'unsupported'. */
 export async function requestPermission() {
   if (!notificationsSupported()) return 'unsupported';
   try {
     const result = await Notification.requestPermission();
-    log.info('Bildirim izni', { result });
+    log.info('Notification permission', { result });
     if (result === 'granted') await registerPeriodicSync();
     return result;
   } catch (e) {
-    log.error('Bildirim izni istenemedi', e);
+    log.error('Could not request notification permission', e);
     return 'denied';
   }
 }
 
-/** Arka plan kontrolü (destekleyen tarayıcılarda). Desteklenmiyorsa sessizce geçer. */
+/** Background checks (where supported). Silently skipped otherwise. */
 export async function registerPeriodicSync() {
   try {
     const reg = await navigator.serviceWorker?.ready;
     if (!reg || !('periodicSync' in reg)) {
-      log.info('Periodic Background Sync yok; hatırlatmalar yalnızca uygulama açıkken');
+      log.info('No Periodic Background Sync; reminders only while the app is open');
       return false;
     }
     const status = await navigator.permissions.query({ name: 'periodic-background-sync' });
     if (status.state !== 'granted') {
-      log.info('Arka plan senkron izni yok', { state: status.state });
+      log.info('No background sync permission', { state: status.state });
       return false;
     }
     await reg.periodicSync.register(SYNC_TAG, { minInterval: 60 * 60 * 1000 });
-    log.info('Arka plan hatırlatma kontrolü kayıtlı');
+    log.info('Background reminder check registered');
     return true;
   } catch (e) {
-    log.warn('Arka plan kontrolü kaydedilemedi', e);
+    log.warn('Could not register background checks', e);
     return false;
   }
 }
@@ -78,7 +78,7 @@ export async function unregisterPeriodicSync() {
     const reg = await navigator.serviceWorker?.ready;
     await reg?.periodicSync?.unregister(SYNC_TAG);
   } catch {
-    /* yok say */
+    /* ignore */
   }
 }
 
@@ -88,20 +88,20 @@ async function show(n) {
       const reg = await navigator.serviceWorker.ready;
       await reg.showNotification(n.title, {
         body: n.body,
-        tag: `disiplin-${n.id}`,
+        tag: `boss-${n.id}`,
         icon: './icons/icon-192.png',
         badge: './icons/icon-192.png',
         data: { url: n.url },
       });
       return;
     } catch (e) {
-      log.warn('Bildirim gösterilemedi, uygulama içi uyarıya düşülüyor', e);
+      log.warn('Could not show notification, falling back to in-app toast', e);
     }
   }
   toast(`${n.title} — ${n.body}`, { duration: 6000 });
 }
 
-/** Zamanı gelen hatırlatmaları kontrol edip gösterir. */
+/** Checks for due reminders and shows them. */
 export async function check(now = new Date()) {
   if (running || !store.settings.remindersEnabled || !core()) return [];
   running = true;
@@ -113,7 +113,7 @@ export async function check(now = new Date()) {
     const doneToday = new Set(habits.filter((h) => store.isDone(h.id, today)).map((h) => h.id));
     const due = core().dueReminders({ habits, doneToday, day: store.day(today), settings: store.settings, fired, now });
     if (!due.length) return [];
-    log.info('Hatırlatmalar', { ids: due.map((d) => d.id) });
+    log.info('Reminders', { ids: due.map((d) => d.id) });
     for (const n of due) {
       await show(n);
       fired.add(n.id);
@@ -121,7 +121,7 @@ export async function check(now = new Date()) {
     await store.setMeta(META_KEY, { date: today, ids: [...fired] });
     return due;
   } catch (e) {
-    log.error('Hatırlatma kontrolü başarısız', e);
+    log.error('Reminder check failed', e);
     return [];
   } finally {
     running = false;
@@ -138,7 +138,7 @@ export function startReminders() {
   timer = setInterval(tick, 30000);
   document.addEventListener('visibilitychange', tick);
   stopReminders.cleanup = () => document.removeEventListener('visibilitychange', tick);
-  log.debug('hatırlatıcı zamanlayıcı başladı');
+  log.debug('reminder timer started');
 }
 
 export function stopReminders() {

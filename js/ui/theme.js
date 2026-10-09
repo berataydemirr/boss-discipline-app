@@ -1,6 +1,6 @@
 /**
- * Tema ve vurgu rengi. Seçim localStorage'a da yansıtılır ki index.html'deki
- * küçük betik, CSS yüklenmeden önce doğru temayı uygulayıp beyaz flaşı önlesin.
+ * Theme and accent color. The choice is mirrored to localStorage so the small script
+ * in index.html can apply the right theme before CSS loads (no white flash).
  */
 import { createLogger } from '../core/logger.js';
 
@@ -9,10 +9,10 @@ const media = window.matchMedia('(prefers-color-scheme: light)');
 let currentPref = 'system';
 
 export const ACCENTS = [
-  { id: 'ember', name: 'Kiremit', dark: '#e2673c', light: '#c4501f' },
-  { id: 'moss', name: 'Yosun', dark: '#a7b872', light: '#5c7a2b' },
-  { id: 'ochre', name: 'Hardal', dark: '#dba845', light: '#9c6c0b' },
-  { id: 'tide', name: 'Gelgit', dark: '#7fa8cc', light: '#2f6690' },
+  { id: 'ember', name: 'Ember', dark: '#e2673c', light: '#c4501f' },
+  { id: 'moss', name: 'Moss', dark: '#a7b872', light: '#5c7a2b' },
+  { id: 'ochre', name: 'Ochre', dark: '#dba845', light: '#9c6c0b' },
+  { id: 'tide', name: 'Tide', dark: '#7fa8cc', light: '#2f6690' },
 ];
 
 function resolve(pref) {
@@ -27,15 +27,15 @@ export function applyTheme(pref, accent) {
   root.dataset.theme = theme;
   root.dataset.accent = accent;
   try {
-    localStorage.setItem('disiplin:theme', pref);
-    localStorage.setItem('disiplin:accent', accent);
+    localStorage.setItem('boss:theme', pref);
+    localStorage.setItem('boss:accent', accent);
   } catch {
-    /* yok say */
+    /* ignore */
   }
-  // Durum çubuğu rengi arka planla aynı olsun.
+  // Match the status bar to the background.
   const bg = getComputedStyle(root).getPropertyValue('--bg').trim();
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', bg || '#11100e');
-  log.debug('tema uygulandı', { pref, theme, accent });
+  log.debug('theme applied', { pref, theme, accent });
 }
 
 media.addEventListener?.('change', () => {

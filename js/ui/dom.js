@@ -1,8 +1,8 @@
 /**
- * Minimal DOM yardımcısı. innerHTML KULLANMAZ: tüm metinler textContent ile eklenir,
- * kullanıcı girdisi asla HTML olarak yorumlanmaz (XSS'e karşı güvenli).
+ * Minimal DOM helper. Does NOT use innerHTML: all text goes in via text nodes,
+ * so user input is never interpreted as HTML (XSS-safe).
  *
- * h('button', { class: 'btn', onclick: fn, 'aria-label': 'Ekle' }, 'Ekle')
+ * h('button', { class: 'btn', onclick: fn, 'aria-label': 'Add' }, 'Add')
  */
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const SVG_TAGS = new Set(['svg', 'path', 'circle', 'rect', 'g', 'line', 'polyline', 'polygon', 'text', 'defs', 'title']);
@@ -49,7 +49,7 @@ function append(el, children) {
   }
 }
 
-/** Metin alanını içeriğe göre büyütür. */
+/** Grows a textarea to fit its content. */
 export function autosize(ta) {
   ta.style.height = 'auto';
   ta.style.height = `${ta.scrollHeight + 2}px`;
@@ -59,7 +59,7 @@ export function vibrate(ms = 8) {
   try {
     navigator.vibrate?.(ms);
   } catch {
-    /* bazı tarayıcılar izin vermez */
+    /* some browsers disallow it */
   }
 }
 

@@ -1,17 +1,17 @@
 /**
- * IndexedDB sarmalayıcı + bellek içi yedek.
+ * IndexedDB wrapper + in-memory fallback.
  *
- * Şema değişiklikleri MIGRATIONS'a yeni bir sürüm olarak eklenir; eski sürümden gelen
- * kullanıcıda sırayla çalıştırılır. Mevcut bir migration'ı asla değiştirme — yenisini ekle.
+ * Schema changes are added to MIGRATIONS as a new version; existing users run them
+ * in order. Never edit an existing migration — add a new one.
  *
- * IndexedDB açılamazsa (bazı gizli sekmeler, kısıtlı tarayıcılar) MemoryBackend devreye girer:
- * uygulama çalışır ama veri kalıcı olmaz; UI bunu kullanıcıya bildirir.
+ * If IndexedDB cannot be opened (some private tabs, restricted browsers) the MemoryBackend
+ * takes over: the app works but data is not persisted, and the UI tells the user.
  */
 import { createLogger } from './logger.js';
 
 const log = createLogger('db');
 
-export const DB_NAME = 'disiplin';
+export const DB_NAME = 'boss';
 export const DB_VERSION = 2;
 
 export const MIGRATIONS = {
@@ -24,7 +24,7 @@ export const MIGRATIONS = {
     db.createObjectStore('quotes', { keyPath: 'id' });
     db.createObjectStore('settings', { keyPath: 'key' });
   },
-  // v3: odak oturumları, hedefler, iç kayıtlar (hatırlatıcı günlüğü vb.)
+  // Focus sessions, goals and internal records (reminder log etc.)
   2(db) {
     const focus = db.createObjectStore('focus', { keyPath: 'id' });
     focus.createIndex('byDate', 'date');
@@ -46,34 +46,34 @@ function txDone(tx) {
   return new Promise((resolve, reject) => {
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
-    tx.onabort = () => reject(tx.error ?? new Error('İşlem iptal edildi'));
+    tx.onabort = () => reject(tx.error ?? new Error('Transaction aborted'));
   });
 }
 
 function openIDB(onVersionChange) {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
-    const timeout = setTimeout(() => reject(new Error('IndexedDB açılışı zaman aşımına uğradı')), 8000);
+    const timeout = setTimeout(() => reject(new Error('Opening IndexedDB timed out')), 8000);
 
     req.onupgradeneeded = (e) => {
       const db = req.result;
       const from = e.oldVersion;
-      log.info(`Şema yükseltiliyor: v${from} → v${DB_VERSION}`);
+      log.info(`Upgrading schema: v${from} → v${DB_VERSION}`);
       for (let v = from + 1; v <= DB_VERSION; v++) {
         const migrate = MIGRATIONS[v];
-        if (!migrate) throw new Error(`Eksik migration: v${v}`);
+        if (!migrate) throw new Error(`Missing migration: v${v}`);
         migrate(db, req.transaction);
-        log.info(`Migration v${v} uygulandı`);
+        log.info(`Applied migration v${v}`);
       }
     };
     req.onblocked = () => {
-      log.warn('Veritabanı yükseltmesi başka bir sekme tarafından engelleniyor');
+      log.warn('Database upgrade is blocked by another tab');
     };
     req.onsuccess = () => {
       clearTimeout(timeout);
       const db = req.result;
       db.onversionchange = () => {
-        log.warn('Veritabanı başka bir sekmede yükseltildi; bağlantı kapatılıyor');
+        log.warn('Database was upgraded in another tab; closing connection');
         db.close();
         onVersionChange?.();
       };
@@ -131,7 +131,7 @@ class IdbBackend {
     await txDone(tx);
   }
 
-  /** Verilen tüm store'ları tek, atomik işlemde temizleyip yeniden doldurur (içe aktarma/sıfırlama). */
+  /** Clears and refills the given stores in one atomic transaction (import/reset). */
   async replaceAll(data) {
     const names = Object.keys(data);
     const tx = this.db.transaction(names, 'readwrite');
@@ -192,15 +192,15 @@ class MemoryBackend {
 
 export async function openDatabase({ onVersionChange } = {}) {
   if (typeof indexedDB === 'undefined') {
-    log.error('IndexedDB yok; bellek içi depolama kullanılıyor (veriler kalıcı olmayacak)');
+    log.error('IndexedDB is unavailable; using in-memory storage (data will not persist)');
     return new MemoryBackend(STORES);
   }
   try {
     const db = await openIDB(onVersionChange);
-    log.info('IndexedDB açıldı', { version: db.version, stores: [...db.objectStoreNames] });
+    log.info('IndexedDB opened', { version: db.version, stores: [...db.objectStoreNames] });
     return new IdbBackend(db);
   } catch (e) {
-    log.error('IndexedDB açılamadı; bellek içi depolamaya geçiliyor', e);
+    log.error('Could not open IndexedDB; falling back to in-memory storage', e);
     return new MemoryBackend(STORES);
   }
 }

@@ -1,11 +1,11 @@
 /**
- * Odak zamanlayıcısı (Pomodoro) motoru.
+ * Focus timer (Pomodoro) engine.
  *
- * Zaman "kalan saniye" değil, BİTİŞ ZAMANI (endAt) olarak tutulur ve localStorage'a yazılır:
- * telefon kilitlense, sekme uyusa ya da uygulama kapatılsa bile süre doğru kalır.
- * Uygulama yeniden açıldığında süre dolmuşsa oturum kaydedilir.
+ * Time is stored as an END TIMESTAMP (endAt), not "seconds left", and persisted to
+ * localStorage: it stays correct when the phone locks, the tab sleeps or the app closes.
+ * If the time has passed when the app reopens, the session is recorded.
  *
- * Durum: { mode: 'focus'|'short'|'long', status: 'idle'|'running'|'paused',
+ * State: { mode: 'focus'|'short'|'long', status: 'idle'|'running'|'paused',
  *          endAt, remainingMs, plannedMin, startedAt, habitId, cycle }
  */
 import { store } from '../core/store.js';
@@ -15,14 +15,14 @@ import { toast } from '../ui/toast.js';
 import { vibrate } from '../ui/dom.js';
 
 const log = createLogger('focus');
-const KEY = 'disiplin:focus';
+const KEY = 'boss:focus';
 const listeners = new Set();
 let ticker = null;
 
 export const MODES = {
-  focus: { label: 'Odak', setting: 'focusMinutes' },
-  short: { label: 'Kısa mola', setting: 'shortBreak' },
-  long: { label: 'Uzun mola', setting: 'longBreak' },
+  focus: { label: 'Focus', setting: 'focusMinutes' },
+  short: { label: 'Short break', setting: 'shortBreak' },
+  long: { label: 'Long break', setting: 'longBreak' },
 };
 
 function fresh() {
@@ -35,7 +35,7 @@ function load() {
     const s = raw ? JSON.parse(raw) : null;
     if (s && MODES[s.mode] && ['idle', 'running', 'paused'].includes(s.status)) return { ...fresh(), ...s };
   } catch (e) {
-    log.warn('Kayıtlı odak durumu okunamadı', e);
+    log.warn('Could not read saved focus state', e);
   }
   return fresh();
 }
@@ -46,7 +46,7 @@ function save() {
   try {
     localStorage.setItem(KEY, JSON.stringify(state));
   } catch {
-    /* kota/gizli mod — zamanlayıcı bellek içinde çalışmaya devam eder */
+    /* quota/private mode — the timer keeps running in memory */
   }
 }
 
@@ -55,7 +55,7 @@ function emit() {
     try {
       fn(snapshot());
     } catch (e) {
-      log.error('Odak dinleyicisi hatası', e);
+      log.error('Focus listener error', e);
     }
   });
 }
@@ -71,7 +71,7 @@ export function durationMin(mode = state.mode) {
   return store.settings[MODES[mode].setting];
 }
 
-/** Ekrana hazır anlık görüntü. */
+/** Render-ready snapshot. */
 export function snapshot(now = Date.now()) {
   const totalMs = (state.plannedMin ?? durationMin()) * 60000;
   let remainingMs;
@@ -100,12 +100,12 @@ function tick() {
   else emit();
 }
 
-/* ───────────────────────── eylemler ───────────────────────── */
+/* ───────────────────────── actions ───────────────────────── */
 
 export function start() {
   const plannedMin = durationMin();
   const now = Date.now();
-  log.info('Başladı', { mode: state.mode, plannedMin });
+  log.info('Started', { mode: state.mode, plannedMin });
   set({ status: 'running', plannedMin, startedAt: now, endAt: now + plannedMin * 60000, remainingMs: null });
 }
 
@@ -120,12 +120,12 @@ export function resume() {
 }
 
 export function reset() {
-  log.info('Sıfırlandı', { mode: state.mode });
+  log.info('Reset', { mode: state.mode });
   set({ status: 'idle', endAt: null, remainingMs: null, plannedMin: null, startedAt: null });
 }
 
 export function setMode(mode) {
-  if (!MODES[mode]) throw new Error(`Bilinmeyen mod: ${mode}`);
+  if (!MODES[mode]) throw new Error(`Unknown mode: ${mode}`);
   set({ mode, status: 'idle', endAt: null, remainingMs: null, plannedMin: null, startedAt: null });
 }
 
@@ -133,7 +133,7 @@ export function setHabit(habitId) {
   set({ habitId: habitId || null });
 }
 
-/** Oturumu beklemeden bitir (kayıt yok, sonraki moda geç). */
+/** Ends the session early (not recorded) and moves to the next mode. */
 export function skip() {
   advance(false);
 }
@@ -152,8 +152,8 @@ function advance(countFocus) {
 async function complete() {
   const finished = { ...state };
   const endAt = finished.endAt;
-  log.info('Tamamlandı', { mode: finished.mode, plannedMin: finished.plannedMin });
-  // Durumu ÖNCE (senkron) ilerlet: kayıt sürerken gelen bir sonraki tik aynı oturumu ikinci kez kaydetmesin.
+  log.info('Completed', { mode: finished.mode, plannedMin: finished.plannedMin });
+  // Advance FIRST (synchronously) so a tick arriving while saving can't record the session twice.
   advance(true);
 
   if (finished.mode === 'focus') {
@@ -163,32 +163,32 @@ async function complete() {
       const habit = finished.habitId && store.habit(finished.habitId);
       if (habit && store.settings.focusAutoCheck && habit.kind === 'build' && !store.isDone(habit.id, date) && date >= habit.createdAt) {
         await store.toggleCheck(habit.id, date);
-        log.info('Bağlı alışkanlık işaretlendi', { habit: habit.name });
+        log.info('Linked habit checked off', { habit: habit.name });
       }
     } catch (e) {
-      log.error('Odak oturumu kaydedilemedi', e);
+      log.error('Could not save the focus session', e);
     }
   }
   notify(finished.mode);
 }
 
 async function notify(mode) {
-  const msg = mode === 'focus' ? 'Odak bitti. Kısa bir mola ver.' : 'Mola bitti. Hazırsan devam.';
+  const msg = mode === 'focus' ? 'Focus session done. Take a short break.' : 'Break is over. Ready when you are.';
   vibrate([120, 80, 120]);
   beep();
   if (document.visibilityState !== 'visible' && 'Notification' in window && Notification.permission === 'granted') {
     try {
       const reg = await navigator.serviceWorker.ready;
-      await reg.showNotification('BOSS', { body: msg, tag: 'disiplin-focus', icon: './icons/icon-192.png', data: { url: './#/focus' } });
+      await reg.showNotification('BOSS', { body: msg, tag: 'boss-focus', icon: './icons/icon-192.png', data: { url: './#/focus' } });
       return;
     } catch (e) {
-      log.warn('Bildirim gösterilemedi', e);
+      log.warn('Could not show notification', e);
     }
   }
   toast(msg, { duration: 5000 });
 }
 
-/** Kısa, yumuşak bir zil (WebAudio; dosya gerektirmez). */
+/** A short, soft chime (WebAudio; no audio file needed). */
 function beep() {
   try {
     const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -209,14 +209,14 @@ function beep() {
     });
     setTimeout(() => ctx.close(), 1200);
   } catch {
-    /* ses kapalı olabilir */
+    /* sound may be unavailable */
   }
 }
 
-/** Açılışta: kapalıyken süre dolduysa oturumu kaydet, çalışıyorsa sayacı sürdür. */
+/** On startup: record a session that finished while the app was closed, resume a running one. */
 export function initFocus() {
   if (state.status === 'running' && Date.now() >= state.endAt) {
-    log.info('Uygulama kapalıyken odak tamamlanmış');
+    log.info('Focus session finished while the app was closed');
     complete();
   }
   syncTicker();
@@ -225,7 +225,7 @@ export function initFocus() {
   });
 }
 
-/** Testler için. */
+/** For tests. */
 export function _resetForTests() {
   state = fresh();
   save();

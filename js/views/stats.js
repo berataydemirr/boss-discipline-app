@@ -1,6 +1,6 @@
 /**
- * Analiz: seviye, özet sayılar, yıllık takvim, haftalık oran, gün deseni,
- * alışkanlık tablosu, ruh hali içgörüleri, rozetler.
+ * Stats: level, headline numbers, yearly calendar, weekly rate, weekday pattern,
+ * habit table, focus time, mood insights, badges.
  */
 import { h } from '../ui/dom.js';
 import { icon } from '../ui/icons.js';
@@ -11,6 +11,8 @@ import { colorHex } from '../core/validate.js';
 import { todayKey, addDays, formatShort, WEEKDAYS, WEEKDAYS_SHORT } from '../core/dates.js';
 import { dailySeries, weeklyRates, weekdayPattern, moodCorrelation, reviewAverages } from '../logic/stats.js';
 
+const num = (v, digits = 0) => v.toLocaleString('en-US', { maximumFractionDigits: digits });
+
 export function render() {
   const today = todayKey();
   const habits = store.allHabits();
@@ -19,9 +21,9 @@ export function render() {
     return h(
       'div',
       { class: 'page' },
-      h('header', { class: 'page-head' }, h('p', { class: 'eyebrow' }, 'Analiz'), h('h1', { class: 'display' }, 'Henüz erken.')),
-      h('p', { class: 'muted' }, 'Birkaç gün alışkanlıklarını işaretledikçe burada seriler, oranlar ve takvimin oluşacak.'),
-      h('a', { class: 'btn btn-primary', href: '#/today', style: { marginTop: '20px' } }, 'Bugüne git'),
+      h('header', { class: 'page-head' }, h('p', { class: 'eyebrow' }, 'Stats'), h('h1', { class: 'display' }, 'Too early.')),
+      h('p', { class: 'muted' }, 'Check off your habits for a few days and your streaks, rates and calendar will show up here.'),
+      h('a', { class: 'btn btn-primary', href: '#/today', style: { marginTop: '20px' } }, 'Go to today'),
     );
   }
 
@@ -32,7 +34,7 @@ export function render() {
   return h(
     'div',
     { class: 'page stats' },
-    h('header', { class: 'page-head' }, h('p', { class: 'eyebrow' }, 'Analiz'), h('h1', { class: 'display' }, 'İlerleme')),
+    h('header', { class: 'page-head' }, h('p', { class: 'eyebrow' }, 'Stats'), h('h1', { class: 'display' }, 'Progress')),
     levelCard(sum.level),
     kpis(sum, habits, isDone, today),
     calendarSection(habits, isDone, today),
@@ -54,7 +56,7 @@ function section(title, meta, ...children) {
   );
 }
 
-/* ───────────────────────── seviye ───────────────────────── */
+/* ───────────────────────── level ───────────────────────── */
 
 function levelCard(lv) {
   const left = lv.next - lv.points;
@@ -64,15 +66,15 @@ function levelCard(lv) {
     h(
       'div',
       { class: 'level-top' },
-      h('div', null, h('p', { class: 'eyebrow' }, `Seviye ${lv.level}`), h('p', { class: 'level-title serif' }, lv.title)),
-      h('p', { class: 'level-points' }, h('span', { class: 'num' }, lv.points.toLocaleString('tr-TR')), ' puan'),
+      h('div', null, h('p', { class: 'eyebrow' }, `Level ${lv.level}`), h('p', { class: 'level-title serif' }, lv.title)),
+      h('p', { class: 'level-points' }, h('span', { class: 'num' }, num(lv.points)), ' pts'),
     ),
     meter(lv.progress),
-    h('p', { class: 'level-next' }, `Sonraki seviyeye ${left.toLocaleString('tr-TR')} puan`),
+    h('p', { class: 'level-next' }, `${num(left)} points to the next level`),
   );
 }
 
-/* ───────────────────────── özet sayılar ───────────────────────── */
+/* ───────────────────────── headline numbers ───────────────────────── */
 
 function kpis(sum, habits, isDone, today) {
   const thisWeek = weeklyRates(habits, isDone, today, 1)[0];
@@ -80,39 +82,39 @@ function kpis(sum, habits, isDone, today) {
   return h(
     'div',
     { class: 'stat-row stat-row-3' },
-    statTile('Bu hafta', pct(thisWeek.rate), thisWeek.total ? `${thisWeek.done}/${thisWeek.total}` : null),
-    statTile('En iyi seri', String(t.bestStreak), 'gün'),
-    statTile('Tam gün', String(t.perfectDays), t.perfectRun > 1 ? `${t.perfectRun} gün üst üste` : null),
+    statTile('This week', pct(thisWeek.rate), thisWeek.total ? `${thisWeek.done}/${thisWeek.total}` : null),
+    statTile('Best streak', String(t.bestStreak), 'days'),
+    statTile('Perfect days', String(t.perfectDays), t.perfectRun > 1 ? `${t.perfectRun} in a row` : null),
   );
 }
 
-/* ───────────────────────── takvim ───────────────────────── */
+/* ───────────────────────── calendar ───────────────────────── */
 
 function calendarSection(habits, isDone, today) {
   const from = addDays(today, -7 * 52);
   const series = dailySeries(habits, isDone, from, today).map((d) => (d.key === today && d.done < d.total ? { ...d, ratio: d.done ? d.ratio : null } : d));
-  return section('Son 12 ay', null, heatmap(series));
+  return section('Last 12 months', null, heatmap(series));
 }
 
-/* ───────────────────────── haftalık ───────────────────────── */
+/* ───────────────────────── weekly ───────────────────────── */
 
 function weeklySection(habits, isDone, today) {
   const weeks = weeklyRates(habits, isDone, today, 12);
   const items = weeks.map((w, i) => ({
-    label: i === weeks.length - 1 ? 'Bu' : i % 3 === 2 ? formatShort(w.start).split(' ')[0] : '',
+    label: i === weeks.length - 1 ? 'Now' : i % 3 === 2 ? formatShort(w.start).split(' ')[0] : '',
     value: w.rate,
     highlight: i === weeks.length - 1,
-    tip: `${formatShort(w.start)} haftası · ${w.total ? `${pct(w.rate)} (${w.done}/${w.total})` : 'plan yok'}`,
+    tip: `Week of ${formatShort(w.start)} · ${w.total ? `${pct(w.rate)} (${w.done}/${w.total})` : 'nothing planned'}`,
   }));
   const rated = weeks.filter((w) => w.rate != null);
   const avg = rated.length ? rated.reduce((a, w) => a + w.rate, 0) / rated.length : null;
-  return section('Haftalık oran', avg != null ? `12 hafta ort. ${pct(avg)}` : null, columns(items, { valueLabel: (it) => pct(it.value) }));
+  return section('Weekly rate', avg != null ? `12-week avg ${pct(avg)}` : null, columns(items, { valueLabel: (it) => pct(it.value) }));
 }
 
-/* ───────────────────────── gün deseni ───────────────────────── */
+/* ───────────────────────── weekday pattern ───────────────────────── */
 
 function weekdaySection(habits, isDone, earliest, today) {
-  const from = earliest > addDays(today, -83) ? earliest : addDays(today, -83); // son 12 hafta
+  const from = earliest > addDays(today, -83) ? earliest : addDays(today, -83); // last 12 weeks
   const pattern = weekdayPattern(habits, isDone, from, today);
   const rated = pattern.filter((p) => p.rate != null && p.total >= 2);
   let insight = null;
@@ -120,25 +122,25 @@ function weekdaySection(habits, isDone, earliest, today) {
     const best = rated.reduce((a, b) => (b.rate > a.rate ? b : a));
     const worst = rated.reduce((a, b) => (b.rate < a.rate ? b : a));
     if (best.rate - worst.rate >= 0.1) {
-      insight = `En güçlü günün ${WEEKDAYS[best.weekday]} (${pct(best.rate)}), en zayıf ${WEEKDAYS[worst.weekday]} (${pct(worst.rate)}).`;
+      insight = `Your strongest day is ${WEEKDAYS[best.weekday]} (${pct(best.rate)}), your weakest ${WEEKDAYS[worst.weekday]} (${pct(worst.rate)}).`;
     }
   }
   const items = pattern.map((p) => ({
     label: WEEKDAYS_SHORT[p.weekday],
     value: p.rate,
-    tip: `${WEEKDAYS[p.weekday]} · ${p.total ? `${pct(p.rate)} (${p.done}/${p.total})` : 'veri yok'}`,
+    tip: `${WEEKDAYS[p.weekday]} · ${p.total ? `${pct(p.rate)} (${p.done}/${p.total})` : 'no data'}`,
   }));
-  return section('Haftanın günleri', 'son 12 hafta', columns(items), insight && h('p', { class: 'insight' }, insight));
+  return section('Days of the week', 'last 12 weeks', columns(items), insight && h('p', { class: 'insight' }, insight));
 }
 
-/* ───────────────────────── alışkanlık tablosu ───────────────────────── */
+/* ───────────────────────── habit table ───────────────────────── */
 
 function habitTable(sum) {
   const active = store.habits();
   if (!active.length) return null;
   return section(
-    'Alışkanlıklar',
-    'son 30 gün',
+    'Habits',
+    'last 30 days',
     h(
       'ul',
       { class: 'htable' },
@@ -157,13 +159,8 @@ function habitTable(sum) {
               { class: 'hrow-main' },
               h('span', { class: 'hrow-name' }, x.name),
               isQuit
-                ? h('span', { class: 'hrow-sub' }, `${s?.current ?? 0} gün temiz · en uzun ${s?.best ?? 0}`)
-                : h(
-                    'span',
-                    { class: 'hrow-sub' },
-                    icon('flame', { size: 12, cls: 'meta-flame' }),
-                    `${s?.current ?? 0} · en iyi ${s?.best ?? 0}`,
-                  ),
+                ? h('span', { class: 'hrow-sub' }, `${s?.current ?? 0} days clean · longest ${s?.best ?? 0}`)
+                : h('span', { class: 'hrow-sub' }, icon('flame', { size: 12, cls: 'meta-flame' }), `${s?.current ?? 0} · best ${s?.best ?? 0}`),
             ),
             !isQuit && h('span', { class: 'hrow-rate' }, h('span', { class: 'num' }, pct(s?.rate30?.rate)), meter(s?.rate30?.rate, { color: 'var(--text-2)' })),
           ),
@@ -173,7 +170,7 @@ function habitTable(sum) {
   );
 }
 
-/* ───────────────────────── odak (v3) ───────────────────────── */
+/* ───────────────────────── focus ───────────────────────── */
 
 function focusSection(today) {
   if (!store.focusSessions().length) return null;
@@ -182,38 +179,35 @@ function focusSection(today) {
   const max = Math.max(60, ...mins);
   const week = mins.slice(-7).reduce((a, b) => a + b, 0);
   const total = store.focusMinutesTotal();
-  const hours = (m) => (m >= 60 ? `${(m / 60).toLocaleString('tr-TR', { maximumFractionDigits: 1 })} sa` : `${m} dk`);
+  /** Value and unit separately, so the unit sits on the tile's second line (like the other tiles). */
+  const dur = (m) => (m >= 60 ? [num(m / 60, 1), 'hours'] : [String(m), 'minutes']);
   const items = days.map((d, i) => ({
     label: i % 2 === 1 ? String(Number(d.slice(8))) : '',
     value: mins[i] ? mins[i] / max : null,
     highlight: d === today,
-    tip: `${formatShort(d)} · ${mins[i]} dk`,
+    tip: `${formatShort(d)} · ${mins[i]} min`,
   }));
   return section(
-    'Odak',
-    'son 14 gün',
+    'Focus',
+    'last 14 days',
     h(
       'div',
       { class: 'stat-row stat-row-3' },
-      statTile('Bu hafta', hours(week)),
-      statTile('Günlük ort.', `${Math.round(week / 7)} dk`),
-      statTile('Toplam', hours(total)),
+      statTile('This week', ...dur(week)),
+      statTile('Daily avg', String(Math.round(week / 7)), 'minutes'),
+      statTile('Total', ...dur(total)),
     ),
-    columns(items, { valueLabel: () => `${mins[mins.length - 1]} dk`, scale: [`${max}`, `${Math.round(max / 2)}`] }),
+    columns(items, { valueLabel: () => `${mins[mins.length - 1]} min`, scale: [`${max}`, `${Math.round(max / 2)}`] }),
   );
 }
 
-/* ───────────────────────── ruh hali ───────────────────────── */
+/* ───────────────────────── mood ───────────────────────── */
 
 function moodSection(habits, isDone, days, today) {
   const from = addDays(today, -29);
   const avgs = reviewAverages(days, from, today);
   if (avgs.count === 0) {
-    return section(
-      'Ruh hali',
-      null,
-      h('p', { class: 'muted small' }, 'Akşam değerlendirmesi yaptıkça gün puanın, ruh halin ve hangi alışkanlığın sana iyi geldiği burada görünür.'),
-    );
+    return section('Mood', null, h('p', { class: 'muted small' }, 'Do evening reviews and your day score, mood and which habits are good for you will show up here.'));
   }
   const byDate = new Map(days.map((d) => [d.date, d]));
   const points = [];
@@ -221,19 +215,19 @@ function moodSection(habits, isDone, days, today) {
 
   const correlations = moodCorrelation(habits, isDone, days).slice(0, 3);
   const nameOf = (id) => store.habit(id)?.name ?? '?';
-  const fmt = (v) => (v == null ? '—' : v.toLocaleString('tr-TR', { maximumFractionDigits: 1 }));
+  const fmt = (v) => (v == null ? '—' : num(v, 1));
 
   return section(
-    'Ruh hali',
-    `son 30 gün · ${avgs.count} kayıt`,
+    'Mood',
+    `last 30 days · ${avgs.count} ${avgs.count === 1 ? 'entry' : 'entries'}`,
     h(
       'div',
       { class: 'stat-row stat-row-3' },
-      statTile('Gün puanı', fmt(avgs.score), 'ortalama / 10'),
-      statTile('Ruh hali', fmt(avgs.mood), 'ortalama / 5'),
-      statTile('Enerji', fmt(avgs.energy), 'ortalama / 5'),
+      statTile('Day score', fmt(avgs.score), 'average / 10'),
+      statTile('Mood', fmt(avgs.mood), 'average / 5'),
+      statTile('Energy', fmt(avgs.energy), 'average / 5'),
     ),
-    h('p', { class: 'chart-caption' }, 'Gün puanı'),
+    h('p', { class: 'chart-caption' }, 'Day score'),
     trendLine(points, { min: 1, max: 10 }),
     correlations.length > 0 &&
       h(
@@ -244,26 +238,26 @@ function moodSection(habits, isDone, days, today) {
             'li',
             { class: 'insight' },
             c.delta >= 0
-              ? `${nameOf(c.habitId)} yaptığın günlerde ruh halin ortalama ${fmt(c.delta)} puan daha iyi.`
-              : `${nameOf(c.habitId)} yaptığın günlerde ruh halin ortalama ${fmt(-c.delta)} puan daha düşük.`,
-            h('span', { class: 'faint' }, ` (${c.nWith} / ${c.nWithout} gün)`),
+              ? `On days you do “${nameOf(c.habitId)}”, your mood is ${fmt(c.delta)} points higher on average.`
+              : `On days you do “${nameOf(c.habitId)}”, your mood is ${fmt(-c.delta)} points lower on average.`,
+            h('span', { class: 'faint' }, ` (${c.nWith} / ${c.nWithout} days)`),
           ),
         ),
       ),
   );
 }
 
-/* ───────────────────────── rozetler ───────────────────────── */
+/* ───────────────────────── badges ───────────────────────── */
 
 function badgeProgress(b) {
-  if (b.id === 'odak-10') return `${Math.floor(b.current / 60)}/${b.target / 60} sa`;
+  if (b.id === 'focus-10h') return `${Math.floor(b.current / 60)}/${b.target / 60} h`;
   return `${Math.min(b.current, b.target)}/${b.target}`;
 }
 
 function badgesSection(badges) {
   const earned = badges.filter((b) => b.earned).length;
   return section(
-    'Rozetler',
+    'Badges',
     `${earned}/${badges.length}`,
     h(
       'ul',

@@ -1,7 +1,7 @@
 /**
- * Service worker önbellek listesi ile diskteki dosyalar uyumlu mu?
- * Listede eksik dosya → uygulama çevrimdışı açılmaz.
- * Listede olup diskte olmayan dosya → SW kurulumu tamamen başarısız olur.
+ * Is the service worker's precache list in sync with the files on disk?
+ * A missing entry → the app won't open offline.
+ * An entry with no file → the service worker install fails entirely.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -18,30 +18,30 @@ function walk(dir) {
     .flatMap((e) => (e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name).replaceAll('\\', '/')]));
 }
 
-test('PRECACHE listesindeki her dosya var', () => {
+test('every PRECACHE entry exists', () => {
   for (const u of list) {
     if (u === './') continue;
-    assert.ok(fs.existsSync(path.join(root, u)), `diskte yok: ${u}`);
+    assert.ok(fs.existsSync(path.join(root, u)), `missing on disk: ${u}`);
   }
 });
 
-test('her uygulama dosyası PRECACHE listesinde', () => {
+test('every app file is in PRECACHE', () => {
   const files = [...walk('js'), ...walk('css'), ...walk('icons')].map((f) => `./${f}`);
   const missing = files.filter((f) => !list.includes(f));
-  assert.deepEqual(missing, [], `PRECACHE listesine eklenmeli: ${missing.join(', ')}`);
+  assert.deepEqual(missing, [], `add to PRECACHE: ${missing.join(', ')}`);
 });
 
-test('import edilen her modül mevcut', () => {
+test('every imported module exists', () => {
   for (const f of walk('js')) {
     const src = fs.readFileSync(path.join(root, f), 'utf8');
     for (const m of src.matchAll(/from '(\.[^']+)'/g)) {
       const target = path.join(root, path.dirname(f), m[1]);
-      assert.ok(fs.existsSync(target), `${f} → ${m[1]} bulunamadı`);
+      assert.ok(fs.existsSync(target), `${f} → ${m[1]} not found`);
     }
   }
 });
 
-test('manifest geçerli JSON ve ikonları mevcut', () => {
+test('manifest is valid JSON and its icons exist', () => {
   const man = JSON.parse(fs.readFileSync(path.join(root, 'manifest.webmanifest'), 'utf8'));
   assert.equal(man.display, 'standalone');
   for (const i of man.icons) assert.ok(fs.existsSync(path.join(root, i.src)), i.src);

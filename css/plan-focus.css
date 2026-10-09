@@ -1,6 +1,6 @@
-/* V3 ekranları: odak zamanlayıcısı, plan/hedefler, ayarlardaki küçük kontroller. */
+/* Focus timer, plan/goals and small settings controls. */
 
-/* ───────────────────────── odak ───────────────────────── */
+/* ───────────────────────── focus ───────────────────────── */
 
 .focus-modes {
   margin-bottom: 8px;
@@ -114,7 +114,7 @@
 }
 
 .focus[data-status='idle'] .focus-main .icon {
-  margin-left: 3px; /* oynat üçgenini optik olarak ortala */
+  margin-left: 3px; /* optically center the play triangle */
 }
 
 .focus-side {
@@ -292,7 +292,7 @@
   line-height: 1.5;
 }
 
-/* ───────────────────────── ayarlar: küçük kontroller ───────────────────────── */
+/* ───────────────────────── settings: small controls ───────────────────────── */
 
 .stepper {
   display: flex;

@@ -1,7 +1,7 @@
 /*
- * Tasarım belirteçleri.
- * Palet: "mürekkep ve kâğıt" — sıcak siyah zemin, kemik beyazı metin, tek vurgu rengi.
- * Tüm renkler buradan gelir; bileşenlerde sabit renk kodu kullanma.
+ * Design tokens.
+ * Palette: "ink and paper" — warm black background, bone-white text, a single accent.
+ * Every color comes from here; never hard-code colors in components.
  */
 
 :root {
@@ -25,7 +25,7 @@
   --dur: 180ms;
 }
 
-/* —— Koyu: Mürekkep —— */
+/* —— Dark: Ink —— */
 :root[data-theme='dark'] {
   color-scheme: dark;
   --bg: #11100e;
@@ -47,7 +47,7 @@
   --toast-text: #17150f;
 }
 
-/* —— Açık: Kâğıt —— */
+/* —— Light: Paper —— */
 :root[data-theme='light'] {
   color-scheme: light;
   --bg: #f3eee4;
@@ -69,7 +69,7 @@
   --toast-text: #f3eee4;
 }
 
-/* —— Vurgu renkleri (tema başına ayarlı kontrast) —— */
+/* —— Accent colors (contrast tuned per theme) —— */
 :root[data-theme='dark'][data-accent='ember'] { --accent: #e2673c; }
 :root[data-theme='light'][data-accent='ember'] { --accent: #c4501f; }
 :root[data-theme='dark'][data-accent='moss'] { --accent: #a7b872; }

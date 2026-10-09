@@ -1,12 +1,13 @@
 /**
- * Uygulama durumu ve tek veri erişim noktası.
+ * Application state and the single data access point.
  *
- * Tasarım:
- * - Açılışta tüm veri belleğe alınır (kişisel kullanım için küçük), okuma senkron ve hızlıdır.
- * - Yazmalar önce veritabanına, BAŞARILI olursa belleğe uygulanır: ekran ile disk asla ayrışmaz.
- * - Tüm yazmalar tek bir kuyrukta sırayla çalışır: hızlı çift dokunuşlar yarış durumu yaratmaz.
- * - Her değişiklik sonrası abonelere { type, silent } olayı yayılır. silent=true olaylar
- *   (ör. not yazarken otomatik kayıt) ekranı yeniden çizdirmez; odak kaybolmaz.
+ * Design:
+ * - All data is loaded into memory on startup (small for personal use); reads are synchronous.
+ * - Writes go to the database first and are applied in memory only on success,
+ *   so the screen and the disk never diverge.
+ * - All writes run sequentially in one queue: rapid double taps cannot race.
+ * - Every change emits { type, silent } to subscribers. silent=true events
+ *   (e.g. autosave while typing) do not re-render, so focus is never lost.
  */
 import { openDatabase, DB_VERSION } from './db.js';
 import { createLogger } from './logger.js';
@@ -22,21 +23,20 @@ export const DEFAULT_SETTINGS = Object.freeze({
   accent: 'ember', // 'ember' | 'moss' | 'ochre' | 'tide'
   quoteSource: 'all', // 'all' | 'favorites' | 'mine'
   favQuotes: [],
-  // v3
   remindersEnabled: false,
-  morningTime: '08:30', // öncelik hatırlatması
-  eveningTime: '21:30', // akşam değerlendirmesi hatırlatması
+  morningTime: '08:30', // priorities reminder
+  eveningTime: '21:30', // evening review reminder
   focusMinutes: 25,
   shortBreak: 5,
   longBreak: 15,
-  longEvery: 4, // kaç odaktan sonra uzun mola
-  focusAutoCheck: true, // odak bitince bağlı alışkanlığı işaretle
+  longEvery: 4, // long break after this many focus sessions
+  focusAutoCheck: true, // check the linked habit when a focus session ends
   lastExportAt: null,
 });
 
 const minutes = (lo, hi) => (v) => Number.isInteger(v) && v >= lo && v <= hi;
 
-const SETTING_VALIDATORS = {
+export const SETTING_VALIDATORS = {
   theme: (v) => ['system', 'dark', 'light'].includes(v),
   accent: (v) => ['ember', 'moss', 'ochre', 'tide'].includes(v),
   quoteSource: (v) => ['all', 'favorites', 'mine'].includes(v),
@@ -51,17 +51,16 @@ const SETTING_VALIDATORS = {
   focusAutoCheck: (v) => typeof v === 'boolean',
   lastExportAt: (v) => v === null || Number.isFinite(v),
 };
-export { SETTING_VALIDATORS };
 
 const state = {
   ready: false,
   backend: null,
   habits: [],
   checks: new Map(), // id `${date}|${habitId}` → { id, habitId, date, type: 'done'|'slip', at }
-  days: new Map(), // date → { date, note, ... }
-  quotes: [], // kullanıcının kendi sözleri
+  days: new Map(), // date → { date, note, priorities, review }
+  quotes: [], // user's own quotes
   settings: { ...DEFAULT_SETTINGS },
-  focus: [], // odak oturumları, eskiden yeniye
+  focus: [], // focus sessions, oldest first
   goals: [],
 };
 
@@ -71,11 +70,11 @@ const index = {
 
 const subscribers = new Set();
 let queue = Promise.resolve();
-/** Her değişiklikte artar; özet önbelleği bununla geçersizlenir. */
+/** Incremented on every change; invalidates the summary cache. */
 let version = 0;
 let summaryCache = { key: null, value: null };
 
-/* ───────────────────────── iç yardımcılar ───────────────────────── */
+/* ───────────────────────── internals ───────────────────────── */
 
 export function uid() {
   if (globalThis.crypto?.randomUUID) return crypto.randomUUID();
@@ -83,10 +82,10 @@ export function uid() {
 }
 
 function assertReady() {
-  if (!state.ready) throw new Error('Store henüz hazır değil (init çağrılmadı)');
+  if (!state.ready) throw new Error('Store is not ready (init was not called)');
 }
 
-/** Yazma işlemlerini sıraya sokar; bir hata kuyruğu kilitlemez. */
+/** Serializes writes; a failure does not block the queue. */
 function enqueue(label, fn) {
   const run = async () => {
     const end = log.time(label);
@@ -96,7 +95,7 @@ function enqueue(label, fn) {
       return result;
     } catch (e) {
       if (e instanceof V.ValidationError) log.warn(`${label}: ${e.message}`);
-      else log.error(`${label} başarısız`, e);
+      else log.error(`${label} failed`, e);
       throw e;
     }
   };
@@ -107,12 +106,12 @@ function enqueue(label, fn) {
 
 function emit(type, detail = {}) {
   version++;
-  log.debug(`değişiklik: ${type}`, detail);
+  log.debug(`change: ${type}`, detail);
   subscribers.forEach((fn) => {
     try {
       fn({ type, ...detail });
     } catch (e) {
-      log.error('Abone hatası', e);
+      log.error('Subscriber error', e);
     }
   });
 }
@@ -137,7 +136,7 @@ function sortHabits() {
 
 function getHabitOrThrow(id) {
   const h = state.habits.find((x) => x.id === id);
-  if (!h) throw new V.ValidationError('Alışkanlık bulunamadı.');
+  if (!h) throw new V.ValidationError('Habit not found.');
   return h;
 }
 
@@ -145,7 +144,7 @@ function isEmptyDay(rec) {
   return !rec.note?.trim() && !rec.priorities?.length && !rec.review;
 }
 
-/** Tüm veriyi veritabanından belleğe alır. */
+/** Loads everything from the database into memory. */
 async function loadAll() {
   const [habits, checks, days, quotes, settings, focus, goals] = await Promise.all(
     ['habits', 'checks', 'days', 'quotes', 'settings', 'focus', 'goals'].map((s) => state.backend.getAll(s)),
@@ -158,7 +157,7 @@ async function loadAll() {
   state.settings = { ...DEFAULT_SETTINGS };
   for (const { key, value } of settings) {
     if (key in DEFAULT_SETTINGS && SETTING_VALIDATORS[key]?.(value)) state.settings[key] = value;
-    else log.warn('Geçersiz/eski ayar yok sayıldı', { key, value });
+    else log.warn('Ignored invalid or obsolete setting', { key, value });
   }
   state.focus = focus.sort((a, b) => a.start - b.start);
   state.goals = goals.sort((a, b) => a.createdAt - b.createdAt);
@@ -166,10 +165,10 @@ async function loadAll() {
   return { habits: habits.length, checks: checks.length, days: days.length, focus: focus.length, goals: goals.length };
 }
 
-/* ───────────────────────── genel API ───────────────────────── */
+/* ───────────────────────── public API ───────────────────────── */
 
 export const store = {
-  /* —— yaşam döngüsü —— */
+  /* —— lifecycle —— */
 
   async init() {
     const end = log.time('init');
@@ -180,8 +179,6 @@ export const store = {
     state.ready = true;
     end({ ...counts, backend: state.backend.kind });
   },
-
-  /* —— okuma: v3 —— */
 
   subscribe(fn) {
     subscribers.add(fn);
@@ -200,9 +197,9 @@ export const store = {
     return version;
   },
 
-  /* —— okuma —— */
+  /* —— reads —— */
 
-  /** Arşivlenmemiş alışkanlıklar (sıralı). */
+  /** Non-archived habits, in order. */
   habits() {
     return state.habits.filter((h) => !h.archivedAt);
   },
@@ -219,7 +216,7 @@ export const store = {
     return state.habits.find((h) => h.id === id) ?? null;
   },
 
-  /** O gün başlamış, arşivlenmemiş alışkanlıklar. */
+  /** Non-archived habits that had started by that day. */
   habitsOn(date) {
     return state.habits.filter((h) => !h.archivedAt && h.createdAt <= date);
   },
@@ -228,7 +225,7 @@ export const store = {
     return index.byHabit.get(habitId)?.has(date) ?? false;
   },
 
-  /** Alışkanlığın işaretlendiği günler (build için "yapıldı", quit için "kaydı"). */
+  /** Days a habit was marked ("done" for build habits, "slip" for quit habits). */
   datesFor(habitId) {
     return index.byHabit.get(habitId) ?? new Set();
   },
@@ -242,8 +239,8 @@ export const store = {
   },
 
   /**
-   * Tüm istatistik/puan/rozet özeti. Veri değişmedikçe yeniden hesaplanmaz.
-   * Hesap ağırsa bile (yıllarca veri) ekran başına bir kez çalışır.
+   * Full stats/points/badges summary. Not recomputed until data changes,
+   * so even with years of data it runs at most once per render.
    */
   summary() {
     const today = todayKey();
@@ -255,7 +252,7 @@ export const store = {
       isDone: (id, d) => this.isDone(id, d),
       datesFor: (id) => this.datesFor(id),
       days: [...state.days.values()],
-      focusMinutes: this.focusMinutesTotal?.() ?? 0,
+      focusMinutes: this.focusMinutesTotal(),
       today,
     });
     summaryCache = { key, value };
@@ -263,7 +260,7 @@ export const store = {
     return value;
   },
 
-  /** İçeriği olan günler, yeniden eskiye. */
+  /** Days with any content, newest first. */
   daysWithContent() {
     return [...state.days.values()].filter((d) => !isEmptyDay(d)).sort((a, b) => b.date.localeCompare(a.date));
   },
@@ -292,7 +289,7 @@ export const store = {
     return state.goals.filter((g) => g.period === period && g.periodKey === key);
   },
 
-  /** Konsoldan inceleme için: window.disiplin.store.debugSnapshot() */
+  /** For console inspection: window.boss.store.debugSnapshot() */
   debugSnapshot() {
     return {
       backend: state.backend?.kind,
@@ -306,7 +303,7 @@ export const store = {
     };
   },
 
-  /* —— alışkanlıklar —— */
+  /* —— habits —— */
 
   addHabit(input) {
     assertReady();
@@ -317,7 +314,7 @@ export const store = {
       await state.backend.put('habits', habit);
       state.habits.push(habit);
       sortHabits();
-      log.info('Alışkanlık eklendi', { id: habit.id, name: habit.name });
+      log.info('Habit added', { id: habit.id, name: habit.name });
       emit('habits', { id: habit.id });
       return habit;
     });
@@ -330,12 +327,12 @@ export const store = {
       const data = V.validateHabit({ ...current, ...input }, { today: todayKey() });
       if (data.kind !== current.kind) {
         const hasHistory = (index.byHabit.get(id)?.size ?? 0) > 0;
-        if (hasHistory) throw new V.ValidationError('Geçmişi olan bir alışkanlığın türü değiştirilemez.');
+        if (hasHistory) throw new V.ValidationError('The type of a habit with history cannot be changed.');
       }
       const next = { ...current, ...data, updatedAt: Date.now() };
       await state.backend.put('habits', next);
       Object.assign(current, next);
-      log.info('Alışkanlık güncellendi', { id, name: next.name });
+      log.info('Habit updated', { id, name: next.name });
       emit('habits', { id });
       return next;
     });
@@ -348,12 +345,12 @@ export const store = {
       const next = { ...current, archivedAt: archived ? todayKey() : null, updatedAt: Date.now() };
       await state.backend.put('habits', next);
       Object.assign(current, next);
-      log.info(archived ? 'Arşivlendi' : 'Arşivden çıkarıldı', { id });
+      log.info(archived ? 'Archived' : 'Restored from archive', { id });
       emit('habits', { id });
     });
   },
 
-  /** Alışkanlığı ve tüm geçmişini kalıcı olarak siler. */
+  /** Permanently deletes a habit and its entire history. */
   deleteHabit(id) {
     assertReady();
     return enqueue('deleteHabit', async () => {
@@ -364,12 +361,12 @@ export const store = {
       checkIds.forEach((cid) => state.checks.delete(cid));
       state.habits = state.habits.filter((h) => h.id !== id);
       index.byHabit.delete(id);
-      log.info('Alışkanlık silindi', { id, removedChecks: checkIds.length });
+      log.info('Habit deleted', { id, removedChecks: checkIds.length });
       emit('habits', { id });
     });
   },
 
-  /** Aktif listede bir yukarı (-1) / aşağı (+1) taşır. */
+  /** Moves a habit up (-1) or down (+1) in the active list. */
   moveHabit(id, dir) {
     assertReady();
     return enqueue('moveHabit', async () => {
@@ -386,16 +383,16 @@ export const store = {
     });
   },
 
-  /* —— işaretlemeler —— */
+  /* —— check-ins —— */
 
-  /** İşareti açar/kapatır. Yeni durumu (true = işaretli) döner. */
+  /** Toggles a check-in. Resolves to the new state (true = checked). */
   toggleCheck(habitId, date) {
     assertReady();
     return enqueue('toggleCheck', async () => {
       const habit = getHabitOrThrow(habitId);
-      if (!isValidKey(date)) throw new V.ValidationError('Geçersiz tarih.');
-      if (date > todayKey()) throw new V.ValidationError('Gelecek günler işaretlenemez.');
-      if (date < habit.createdAt) throw new V.ValidationError('Bu tarih alışkanlığın başlangıcından önce.');
+      if (!isValidKey(date)) throw new V.ValidationError('Invalid date.');
+      if (date > todayKey()) throw new V.ValidationError('Future days cannot be checked.');
+      if (date < habit.createdAt) throw new V.ValidationError('This date is before the habit started.');
 
       const id = `${date}|${habitId}`;
       const existing = state.checks.get(id);
@@ -410,23 +407,23 @@ export const store = {
         indexAdd(rec);
       }
       const on = !existing;
-      log.info(on ? 'İşaretlendi' : 'İşaret kaldırıldı', { habit: habit.name, date });
+      log.info(on ? 'Checked' : 'Unchecked', { habit: habit.name, date });
       emit('checks', { habitId, date, on });
       return on;
     });
   },
 
-  /* —— günlük kayıtlar —— */
+  /* —— daily records —— */
 
   /**
-   * Günün kaydını kısmi olarak günceller. Kayıt tamamen boşalırsa silinir.
-   * @param {{silent?: boolean}} opts silent: yazarken otomatik kayıt — ekranı yeniden çizdirme
+   * Partially updates a day's record. The record is deleted once it becomes empty.
+   * @param {{silent?: boolean}} opts silent: autosave while typing — do not re-render
    */
   updateDay(date, patch, { silent = false } = {}) {
     assertReady();
     return enqueue('updateDay', async () => {
-      if (!isValidKey(date)) throw new V.ValidationError('Geçersiz tarih.');
-      if (date > todayKey()) throw new V.ValidationError('Gelecek günler için kayıt tutulamaz.');
+      if (!isValidKey(date)) throw new V.ValidationError('Invalid date.');
+      if (date > todayKey()) throw new V.ValidationError('Future days cannot have entries.');
       const current = state.days.get(date) ?? { date, note: '', priorities: [], review: null };
       const next = { ...current, updatedAt: Date.now() };
       if ('note' in patch) next.note = V.cleanMultiline(patch.note, 5000);
@@ -445,7 +442,7 @@ export const store = {
     });
   },
 
-  /* —— sözler —— */
+  /* —— quotes —— */
 
   addQuote(input) {
     assertReady();
@@ -476,23 +473,23 @@ export const store = {
     return fav.has(id);
   },
 
-  /* —— ayarlar —— */
+  /* —— settings —— */
 
   setSetting(key, value) {
     assertReady();
     return enqueue('setSetting', async () => {
-      if (!(key in DEFAULT_SETTINGS)) throw new Error(`Bilinmeyen ayar: ${key}`);
+      if (!(key in DEFAULT_SETTINGS)) throw new Error(`Unknown setting: ${key}`);
       if (SETTING_VALIDATORS[key] && !SETTING_VALIDATORS[key](value)) {
-        throw new V.ValidationError(`Geçersiz ayar değeri: ${key}`);
+        throw new V.ValidationError(`Invalid value for setting: ${key}`);
       }
       await state.backend.put('settings', { key, value });
       state.settings = { ...state.settings, [key]: value };
-      log.info('Ayar değişti', { key, value });
+      log.info('Setting changed', { key, value });
       emit('settings', { key });
     });
   },
 
-  /* —— odak oturumları (v3) —— */
+  /* —— focus sessions —— */
 
   addFocusSession(input) {
     assertReady();
@@ -500,7 +497,7 @@ export const store = {
       const rec = { id: uid(), ...V.validateFocusSession(input) };
       await state.backend.put('focus', rec);
       state.focus.push(rec);
-      log.info('Odak oturumu kaydedildi', { minutes: rec.minutes, habitId: rec.habitId });
+      log.info('Focus session saved', { minutes: rec.minutes, habitId: rec.habitId });
       emit('focus', { id: rec.id });
       return rec;
     });
@@ -515,7 +512,7 @@ export const store = {
     });
   },
 
-  /* —— hedefler (v3) —— */
+  /* —— goals —— */
 
   addGoal(input) {
     assertReady();
@@ -532,7 +529,7 @@ export const store = {
     assertReady();
     return enqueue('updateGoal', async () => {
       const cur = state.goals.find((g) => g.id === id);
-      if (!cur) throw new V.ValidationError('Hedef bulunamadı.');
+      if (!cur) throw new V.ValidationError('Goal not found.');
       const next = { ...cur, ...V.validateGoal({ ...cur, ...patch }) };
       await state.backend.put('goals', next);
       Object.assign(cur, next);
@@ -550,14 +547,14 @@ export const store = {
     });
   },
 
-  /* —— iç kayıtlar (hatırlatıcı günlüğü vb.; ekranı yeniden çizdirmez) —— */
+  /* —— internal records (reminder log etc.; never re-render) —— */
 
   async getMeta(key) {
     assertReady();
     try {
       return (await state.backend.get('meta', key))?.value ?? null;
     } catch (e) {
-      log.warn('meta okunamadı', { key, e });
+      log.warn('Could not read meta', { key, e });
       return null;
     }
   },
@@ -567,9 +564,9 @@ export const store = {
     return enqueue('setMeta', () => state.backend.put('meta', { key, value }));
   },
 
-  /* —— yedekleme (v3) —— */
+  /* —— backup —— */
 
-  /** Tüm kullanıcı verisini yedek nesnesi olarak döner (JSON'a hazır). */
+  /** Returns all user data as a backup object (ready for JSON). */
   exportAll() {
     assertReady();
     const data = {
@@ -581,30 +578,30 @@ export const store = {
       focus: state.focus,
       goals: state.goals,
     };
-    return makeBackup(structuredClone(data), { version: self.DISIPLIN_VERSION, schema: DB_VERSION });
+    return makeBackup(structuredClone(data), { version: self.BOSS_VERSION, schema: DB_VERSION });
   },
 
-  /** Yedeği doğrular; geçerliyse mevcut verinin YERİNE koyar. { counts, skipped } döner. */
+  /** Validates a backup and, if valid, REPLACES all current data. Resolves to { counts, skipped }. */
   importAll(backup) {
     assertReady();
     return enqueue('importAll', async () => {
       const { data, skipped, counts } = validateBackup(backup, { today: todayKey(), settingValidators: SETTING_VALIDATORS });
       await state.backend.replaceAll({ ...data, meta: [] });
       await loadAll();
-      log.info('İçe aktarıldı', { counts, skipped });
+      log.info('Imported', { counts, skipped });
       emit('import', { counts });
       return { counts, skipped };
     });
   },
 
-  /** Her şeyi siler. */
+  /** Deletes everything. */
   resetAll() {
     assertReady();
     return enqueue('resetAll', async () => {
       const empty = Object.fromEntries(['habits', 'checks', 'days', 'quotes', 'settings', 'focus', 'goals', 'meta'].map((k) => [k, []]));
       await state.backend.replaceAll(empty);
       await loadAll();
-      log.warn('Tüm veriler silindi');
+      log.warn('All data deleted');
       emit('import', { reset: true });
     });
   },

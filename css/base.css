@@ -102,7 +102,7 @@ button:disabled {
   display: block;
 }
 
-/* —— tipografi —— */
+/* —— typography —— */
 
 .display {
   font-family: var(--font-serif);
@@ -173,7 +173,7 @@ button:disabled {
   white-space: nowrap;
 }
 
-/* —— yerleşim —— */
+/* —— layout —— */
 
 .view {
   max-width: 560px;

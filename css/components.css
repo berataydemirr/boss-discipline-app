@@ -1,4 +1,4 @@
-/* ───────────────────────── butonlar ───────────────────────── */
+/* ───────────────────────── buttons ───────────────────────── */
 
 .btn {
   display: inline-flex;
@@ -108,7 +108,7 @@
   font-weight: 500;
 }
 
-/* ───────────────────────── çipler ───────────────────────── */
+/* ───────────────────────── chips ───────────────────────── */
 
 .chip {
   display: inline-flex;
@@ -151,7 +151,7 @@
   gap: 8px;
 }
 
-/* ───────────────────────── bölümler ───────────────────────── */
+/* ───────────────────────── sections ───────────────────────── */
 
 .section {
   margin-top: 34px;
@@ -231,7 +231,7 @@
   border: 1px solid var(--line);
   background: var(--surface-2);
   color: var(--text);
-  font-size: 16px; /* iOS: 16px altı odakta yakınlaştırır */
+  font-size: 16px; /* iOS zooms in on focus below 16px */
   transition: border-color var(--dur) var(--ease), background-color var(--dur);
   resize: none;
 }
@@ -369,7 +369,7 @@ input[type='time'].input {
   background: #fdf9f2;
 }
 
-/* ───────────────────────── liste kartı (ayarlar) ───────────────────────── */
+/* ───────────────────────── list card (settings) ───────────────────────── */
 
 .list-card {
   border-radius: var(--r-lg);
@@ -599,7 +599,7 @@ input[type='time'].input {
   color: color-mix(in oklab, var(--accent) 75%, black);
 }
 
-/* ───────────────────────── alt menü ───────────────────────── */
+/* ───────────────────────── tab bar ───────────────────────── */
 
 .tabbar {
   position: fixed;
@@ -650,7 +650,7 @@ input[type='time'].input {
   background: var(--accent);
 }
 
-/* ───────────────────────── hata paneli ───────────────────────── */
+/* ───────────────────────── error panel ───────────────────────── */
 
 .error-panel {
   display: grid;

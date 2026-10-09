@@ -1,7 +1,7 @@
 /*
- * Hatırlatıcı hesaplama çekirdeği — SAF ve KLASİK betik (ES modülü değil).
- * Neden: Hem sayfa (<script>) hem service worker (importScripts) aynı kuralı kullansın.
- * self.DisiplinReminders olarak erişilir. Node testlerinde globalThis'e yazılır.
+ * Reminder rules — PURE, CLASSIC script (not an ES module).
+ * Why: the page (<script>) and the service worker (importScripts) must share one rule set.
+ * Exposed as self.BossReminders; written to globalThis in Node tests.
  */
 (function (root) {
   'use strict';
@@ -14,7 +14,7 @@
     return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
   }
 
-  /** Pazartesi = 0 … Pazar = 6 */
+  /** Monday = 0 … Sunday = 6 */
   function weekdayOf(d) {
     return (d.getDay() + 6) % 7;
   }
@@ -25,9 +25,9 @@
   }
 
   /**
-   * Şu an gösterilmesi gereken hatırlatmalar.
-   * Bir hatırlatma, saati geldikten sonraki `windowMin` dakika içinde ve o gün daha önce
-   * gösterilmediyse döner — uygulamayı akşam açınca sabahın hatırlatması patlamasın diye.
+   * Reminders that should be shown right now.
+   * A reminder fires within `windowMin` minutes after its time and only once per day,
+   * so opening the app in the evening does not replay the morning's reminders.
    *
    * @param {{habits:object[], doneToday:Set<string>, day:object|null, settings:object, fired:Set<string>, now:Date, windowMin?:number}} input
    * @returns {{id:string, title:string, body:string, url:string}[]}
@@ -55,28 +55,28 @@
       var has = (day.priorities || []).some(function (p) {
         return p && p.text;
       });
-      return has ? null : { title: 'Günün öncelikleri', body: 'Bugünün en önemli üç işini yaz.' };
+      return has ? null : { title: 'Today’s priorities', body: 'Write down the three things that matter most today.' };
     });
 
     (input.habits || []).forEach(function (h) {
       if (h.archivedAt || h.kind !== 'build' || !h.reminder || h.createdAt > today) return;
       if (h.days.indexOf(wd) === -1 || input.doneToday.has(h.id)) return;
       consider('h:' + h.id, h.reminder, function () {
-        return { title: h.name, body: 'Bugün henüz işaretlenmedi.' };
+        return { title: h.name, body: 'Not checked off yet today.' };
       });
     });
 
     consider('evening', settings.eveningTime, function () {
-      return day.review ? null : { title: 'Akşam değerlendirmesi', body: 'Günü bir dakikada değerlendir.' };
+      return day.review ? null : { title: 'Evening review', body: 'Take one minute to review your day.' };
     });
 
     return out;
   }
 
-  /** Günlük "gösterildi" kaydı: gün değişince sıfırlanır. */
+  /** Per-day "already shown" log: resets when the day changes. */
   function firedSet(log, today) {
     return new Set(log && log.date === today && Array.isArray(log.ids) ? log.ids : []);
   }
 
-  root.DisiplinReminders = { dueReminders: dueReminders, firedSet: firedSet, dateKey: dateKey, parseTime: parseTime };
+  root.BossReminders = { dueReminders: dueReminders, firedSet: firedSet, dateKey: dateKey, parseTime: parseTime };
 })(typeof self !== 'undefined' ? self : globalThis);

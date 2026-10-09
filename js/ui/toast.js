@@ -1,5 +1,5 @@
 /**
- * Kısa bildirimler. Aynı anda en fazla 3 tane gösterilir.
+ * Short notifications. At most 3 are shown at once.
  */
 import { h } from './dom.js';
 import { createLogger } from '../core/logger.js';
@@ -10,7 +10,7 @@ const MAX = 3;
 export function toast(message, { type = 'info', duration = 2800, action } = {}) {
   const root = document.getElementById('toast-root');
   if (!root) {
-    log.warn('toast-root yok', { message });
+    log.warn('toast-root missing', { message });
     return () => {};
   }
   let timer;
@@ -30,7 +30,7 @@ export function toast(message, { type = 'info', duration = 2800, action } = {}) 
             try {
               action.fn();
             } catch (e) {
-              log.error('Toast eylemi başarısız', e);
+              log.error('Toast action failed', e);
             }
           },
         },
@@ -53,8 +53,8 @@ export function toast(message, { type = 'info', duration = 2800, action } = {}) 
   return dismiss;
 }
 
-/** Hatanın türüne göre anlaşılır mesaj gösterir; beklenmeyen hatalar loglanır. */
-export function showError(e, fallback = 'Bir şeyler ters gitti.') {
+/** Shows a readable message for the error type; unexpected errors are logged. */
+export function showError(e, fallback = 'Something went wrong.') {
   if (e?.name === 'ValidationError') {
     toast(e.message, { type: 'warn' });
     return;

@@ -1,6 +1,6 @@
 /**
- * Uygulamaya özel çizgi ikonlar (24×24 ızgara, 1.7 çizgi kalınlığı).
- * İçerik sabit ve güvenilir olduğu için innerHTML burada güvenlidir.
+ * Custom line icons (24×24 grid, 1.7 stroke).
+ * The markup is static and trusted, so innerHTML is safe here.
  */
 const PATHS = {
   today: '<circle cx="12" cy="12" r="8.25"/><path d="M8.6 12.4l2.3 2.3 4.6-4.9"/>',
@@ -60,7 +60,7 @@ export function icon(name, { size = 20, cls = '', label } = {}) {
   }
   const markup = PATHS[name];
   if (!markup) {
-    console.warn(`[icons] bilinmeyen ikon: ${name}`);
+    console.warn(`[icons] unknown icon: ${name}`);
     return svg;
   }
   svg.innerHTML = markup;

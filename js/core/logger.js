@@ -1,16 +1,16 @@
 /**
- * Merkezi loglama.
+ * Central logging.
  *
- * - Debug modu: URL'ye ?debug=1 ekle ya da Ayarlar > Geliştirici'den aç (?debug=0 kapatır).
- * - Son MAX_ENTRIES kayıt halka tamponda tutulur ve localStorage'a periyodik yazılır;
- *   böylece uygulama çökse bile bir sonraki açılışta Ayarlar > Kayıtlar'dan incelenebilir.
- * - Debug kapalıyken konsola yalnızca warn/error basılır, debug seviyesi hiç tutulmaz.
- * - Konsoldan erişim: window.disiplin.logs()
+ * - Debug mode: add ?debug=1 to the URL or enable it in Settings > Developer (?debug=0 disables).
+ * - The last MAX_ENTRIES records are kept in a ring buffer and flushed to localStorage
+ *   periodically, so they can be inspected in Settings > Logs even after a crash.
+ * - With debug off, only warn/error reach the console and debug records are dropped.
+ * - From the console: window.boss.logs()
  */
 
 const LEVELS = { debug: 10, info: 20, warn: 30, error: 40 };
-const DEBUG_KEY = 'disiplin:debug';
-const BUFFER_KEY = 'disiplin:logs';
+const DEBUG_KEY = 'boss:debug';
+const BUFFER_KEY = 'boss:logs';
 const MAX_ENTRIES = 400;
 const MAX_DATA_CHARS = 1500;
 
@@ -61,7 +61,7 @@ let buffer = loadBuffer();
 let flushTimer = null;
 const listeners = new Set();
 
-/** Tamponu hemen localStorage'a yazar. Sayfa kapanırken de çağrılır. */
+/** Writes the buffer to localStorage immediately. Also called when the page closes. */
 export function flush() {
   clearTimeout(flushTimer);
   flushTimer = null;
@@ -69,12 +69,12 @@ export function flush() {
   try {
     localStorage.setItem(BUFFER_KEY, JSON.stringify(buffer));
   } catch {
-    // Kota dolmuş olabilir: tamponu yarıya indirip bir kez daha dene.
+    // Quota may be full: halve the buffer and try once more.
     buffer = buffer.slice(-Math.floor(MAX_ENTRIES / 2));
     try {
       localStorage.setItem(BUFFER_KEY, JSON.stringify(buffer));
     } catch {
-      /* vazgeç — loglama asla uygulamayı düşürmemeli */
+      /* give up — logging must never break the app */
     }
   }
 }
@@ -84,7 +84,7 @@ function scheduleFlush() {
   flushTimer = setTimeout(flush, 1500);
 }
 
-/** Her türlü veriyi güvenli, kısaltılmış JSON metnine çevirir (Error, Set, Map, döngüsel referans). */
+/** Turns any value into safe, truncated JSON text (Error, Set, Map, circular refs). */
 export function serialize(data) {
   if (data === undefined) return undefined;
   try {
@@ -95,9 +95,9 @@ export function serialize(data) {
       }
       if (v instanceof Set) return [...v];
       if (v instanceof Map) return Object.fromEntries(v);
-      if (typeof v === 'function') return `[fn ${v.name || 'anonim'}]`;
+      if (typeof v === 'function') return `[fn ${v.name || 'anonymous'}]`;
       if (typeof v === 'object' && v !== null) {
-        if (seen.has(v)) return '[döngüsel]';
+        if (seen.has(v)) return '[circular]';
         seen.add(v);
       }
       return v;
@@ -105,7 +105,7 @@ export function serialize(data) {
     if (s === undefined) return String(data);
     return s.length > MAX_DATA_CHARS ? `${s.slice(0, MAX_DATA_CHARS)}…` : s;
   } catch (e) {
-    return `[serileştirilemedi: ${e.message}]`;
+    return `[unserializable: ${e.message}]`;
   }
 }
 
@@ -131,14 +131,14 @@ function write(level, mod, msg, data) {
     try {
       l(entry);
     } catch {
-      /* dinleyici hatası loglamayı bozmasın */
+      /* a listener error must not break logging */
     }
   });
 }
 
 /**
- * Modül bazlı logger üretir.
- * @example const log = createLogger('store'); log.info('yüklendi', { habits: 3 });
+ * Creates a per-module logger.
+ * @example const log = createLogger('store'); log.info('loaded', { habits: 3 });
  */
 export function createLogger(mod) {
   return {
@@ -146,7 +146,7 @@ export function createLogger(mod) {
     info: (msg, data) => write('info', mod, msg, data),
     warn: (msg, data) => write('warn', mod, msg, data),
     error: (msg, data) => write('error', mod, msg, data),
-    /** Süre ölçer: const end = log.time('render'); ... end(); */
+    /** Timer: const end = log.time('render'); ... end(); */
     time(label) {
       const t0 = performance.now();
       return (extra) => write('debug', mod, `${label} ${(performance.now() - t0).toFixed(1)}ms`, extra);
@@ -163,9 +163,9 @@ export function setDebug(on) {
   try {
     if (hasStorage) localStorage.setItem(DEBUG_KEY, on ? '1' : '0');
   } catch {
-    /* yok say */
+    /* ignore */
   }
-  write('info', 'logger', `Debug modu ${on ? 'açıldı' : 'kapandı'}`);
+  write('info', 'logger', `Debug mode ${on ? 'on' : 'off'}`);
 }
 
 export function getLogs() {
@@ -177,7 +177,7 @@ export function clearLogs() {
   flush();
 }
 
-/** Yeni log kayıtlarını canlı dinlemek için. Abonelikten çıkma fonksiyonu döner. */
+/** Subscribe to new log entries live. Returns an unsubscribe function. */
 export function onLog(fn) {
   listeners.add(fn);
   return () => listeners.delete(fn);
@@ -192,7 +192,7 @@ export function formatTime(t) {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`;
 }
 
-/** Panoya kopyalanabilir düz metin rapor. */
+/** Plain-text report suitable for the clipboard. */
 export function formatLogs(entries = buffer) {
   return entries
     .map((e) => `${new Date(e.t).toISOString()} ${e.lvl.toUpperCase().padEnd(5)} [${e.mod}] ${e.msg}${e.data ? ` ${e.data}` : ''}`)

@@ -1,5 +1,5 @@
 /**
- * Alışkanlık ekleme / düzenleme paneli.
+ * Add / edit habit sheet.
  */
 import { h } from './dom.js';
 import { icon } from './icons.js';
@@ -13,9 +13,9 @@ import { createLogger } from '../core/logger.js';
 const log = createLogger('habit-form');
 
 const PRESETS = [
-  { label: 'Her gün', days: [0, 1, 2, 3, 4, 5, 6] },
-  { label: 'Hafta içi', days: [0, 1, 2, 3, 4] },
-  { label: 'Hafta sonu', days: [5, 6] },
+  { label: 'Every day', days: [0, 1, 2, 3, 4, 5, 6] },
+  { label: 'Weekdays', days: [0, 1, 2, 3, 4] },
+  { label: 'Weekends', days: [5, 6] },
 ];
 
 export function scheduleLabel(days) {
@@ -25,7 +25,7 @@ export function scheduleLabel(days) {
   return days.map((d) => WEEKDAYS_SHORT[d]).join(' · ');
 }
 
-/** Boşta kalan ilk rengi önerir; hepsi kullanıldıysa döngüye girer. */
+/** Suggests the first unused color; cycles once all are taken. */
 function suggestColor() {
   const used = new Set(store.habits().map((h) => h.color));
   return (HABIT_COLORS.find((c) => !used.has(c.id)) ?? HABIT_COLORS[store.habits().length % HABIT_COLORS.length]).id;
@@ -41,19 +41,19 @@ export function openHabitForm(existing = null, defaults = {}) {
     createdAt: existing?.createdAt ?? todayKey(),
     reminder: existing?.reminder ?? null,
   };
-  log.debug('form açıldı', { isEdit, draft });
+  log.debug('form opened', { isEdit, draft });
 
   return openSheet({
-    title: isEdit ? 'Alışkanlığı düzenle' : 'Yeni alışkanlık',
+    title: isEdit ? 'Edit habit' : 'New habit',
     build: ({ close }) => {
       let saving = false;
 
-      /* —— ad —— */
+      /* —— name —— */
       const nameInput = h('input', {
         class: 'input',
         type: 'text',
         maxlength: 60,
-        placeholder: 'Örn. 20 sayfa kitap',
+        placeholder: 'e.g. Read 20 pages',
         autocomplete: 'off',
         enterkeyhint: 'done',
         autofocus: !isEdit,
@@ -61,7 +61,7 @@ export function openHabitForm(existing = null, defaults = {}) {
         oninput: (e) => (draft.name = e.target.value),
       });
 
-      /* —— günler —— */
+      /* —— days —— */
       const dayButtons = WEEKDAYS_SHORT.map((label, d) =>
         h(
           'button',
@@ -98,7 +98,7 @@ export function openHabitForm(existing = null, defaults = {}) {
         presetButtons.forEach((b, i) => b.classList.toggle('is-active', PRESETS[i].days.join(',') === key));
       }
 
-      /* —— renk —— */
+      /* —— color —— */
       const swatches = HABIT_COLORS.map((c) =>
         h('button', {
           type: 'button',
@@ -113,13 +113,13 @@ export function openHabitForm(existing = null, defaults = {}) {
         }),
       );
 
-      /* —— tür: kazanılacak / bırakılacak —— */
-      // Geçmişi olan alışkanlığın türü değişemez (store da reddeder); o durumda seçici gösterilmez.
+      /* —— type: build / quit —— */
+      // A habit with history cannot change type (the store rejects it too), so the picker is hidden then.
       const canChangeKind = !isEdit || store.datesFor(existing.id).size === 0;
       const daysField = h('div', { class: 'field' });
       const kindButtons = [
-        ['build', 'Kazanılacak'],
-        ['quit', 'Bırakılacak'],
+        ['build', 'Build'],
+        ['quit', 'Quit'],
       ].map(([v, label]) =>
         h(
           'button',
@@ -141,23 +141,23 @@ export function openHabitForm(existing = null, defaults = {}) {
         reminderField.hidden = draft.kind === 'quit';
         kindHint.textContent =
           draft.kind === 'quit'
-            ? 'Her gün kendiliğinden temiz sayılır; yalnızca kaydığın günleri işaretlersin.'
-            : 'Planladığın günlerde yaptıkça işaretlersin.';
-        nameInput.placeholder = draft.kind === 'quit' ? 'Örn. Gece 12’den sonra telefon' : 'Örn. 20 sayfa kitap';
+            ? 'Every day counts as clean by default; you only log the days you slip.'
+            : 'Check it off on the days you planned it.';
+        nameInput.placeholder = draft.kind === 'quit' ? 'e.g. Phone after midnight' : 'e.g. Read 20 pages';
       }
 
-      /* —— hatırlatma (v3) —— */
+      /* —— reminder —— */
       const reminderInput = h('input', {
         class: 'input input-time',
         type: 'time',
         value: draft.reminder ?? '',
-        'aria-label': 'Hatırlatma saati',
+        'aria-label': 'Reminder time',
         onchange: (e) => (draft.reminder = e.target.value || null),
       });
       const reminderField = h(
         'label',
         { class: 'field' },
-        h('span', { class: 'field-label' }, 'Hatırlatma'),
+        h('span', { class: 'field-label' }, 'Reminder'),
         h(
           'div',
           { class: 'inline-row' },
@@ -172,19 +172,19 @@ export function openHabitForm(existing = null, defaults = {}) {
                 draft.reminder = null;
               },
             },
-            'Kapat',
+            'Clear',
           ),
         ),
         h(
           'span',
           { class: 'field-hint' },
           store.settings.remindersEnabled
-            ? 'O gün henüz yapılmadıysa bu saatte hatırlatılır.'
-            : 'Hatırlatma için Ayarlar › Hatırlatıcılar açık olmalı.',
+            ? 'You’ll be reminded at this time if it isn’t done yet that day.'
+            : 'Turn on Settings › Reminders to get reminded.',
         ),
       );
 
-      /* —— başlangıç —— */
+      /* —— start date —— */
       const startInput = h('input', {
         class: 'input',
         type: 'date',
@@ -200,14 +200,14 @@ export function openHabitForm(existing = null, defaults = {}) {
         try {
           if (isEdit) {
             await store.updateHabit(existing.id, draft);
-            toast('Kaydedildi');
+            toast('Saved');
           } else {
             await store.addHabit(draft);
-            toast(`“${draft.name.trim()}” eklendi`);
+            toast(`“${draft.name.trim()}” added`);
           }
           await close();
         } catch (err) {
-          showError(err, 'Alışkanlık kaydedilemedi.');
+          showError(err, 'Could not save the habit.');
         } finally {
           saving = false;
         }
@@ -215,26 +215,26 @@ export function openHabitForm(existing = null, defaults = {}) {
 
       async function remove() {
         const ok = await confirmDialog({
-          title: 'Kalıcı olarak silinsin mi?',
-          message: `“${existing.name}” ve tüm geçmişi silinecek. Geçmişi korumak istiyorsan arşivle.`,
-          confirmLabel: 'Sil',
+          title: 'Delete permanently?',
+          message: `“${existing.name}” and its entire history will be deleted. Archive it instead to keep the history.`,
+          confirmLabel: 'Delete',
           danger: true,
         });
         if (!ok) return;
         try {
           await store.deleteHabit(existing.id);
-          toast('Silindi');
+          toast('Deleted');
           await close();
         } catch (err) {
-          showError(err, 'Silinemedi.');
+          showError(err, 'Could not delete.');
         }
       }
 
       async function archive() {
         try {
           await store.archiveHabit(existing.id, true);
-          toast('Arşivlendi', {
-            action: { label: 'Geri al', fn: () => store.archiveHabit(existing.id, false).catch(showError) },
+          toast('Archived', {
+            action: { label: 'Undo', fn: () => store.archiveHabit(existing.id, false).catch(showError) },
           });
           await close();
         } catch (err) {
@@ -249,30 +249,30 @@ export function openHabitForm(existing = null, defaults = {}) {
         'form',
         { class: 'form', onsubmit: submit, novalidate: true },
         canChangeKind &&
-          h('div', { class: 'field' }, h('div', { class: 'segmented', role: 'group', 'aria-label': 'Tür' }, kindButtons), kindHint),
-        h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Ad'), nameInput),
+          h('div', { class: 'field' }, h('div', { class: 'segmented', role: 'group', 'aria-label': 'Type' }, kindButtons), kindHint),
+        h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Name'), nameInput),
         (daysField.append(
-          h('span', { class: 'field-label' }, 'Günler'),
+          h('span', { class: 'field-label' }, 'Days'),
           h('div', { class: 'day-pills' }, dayButtons),
           h('div', { class: 'chip-row' }, presetButtons),
         ),
         daysField),
-        h('div', { class: 'field' }, h('span', { class: 'field-label' }, 'Renk'), h('div', { class: 'swatches' }, swatches)),
+        h('div', { class: 'field' }, h('span', { class: 'field-label' }, 'Color'), h('div', { class: 'swatches' }, swatches)),
         reminderField,
         h(
           'label',
           { class: 'field' },
-          h('span', { class: 'field-label' }, 'Başlangıç'),
+          h('span', { class: 'field-label' }, 'Start date'),
           startInput,
-          h('span', { class: 'field-hint' }, 'Geçmiş günleri de işaretleyebilmek için daha erken bir tarih seçebilirsin.'),
+          h('span', { class: 'field-hint' }, 'Pick an earlier date to be able to check off past days too.'),
         ),
-        h('button', { class: 'btn btn-primary btn-block', type: 'submit' }, isEdit ? 'Kaydet' : 'Ekle'),
+        h('button', { class: 'btn btn-primary btn-block', type: 'submit' }, isEdit ? 'Save' : 'Add'),
         isEdit &&
           h(
             'div',
             { class: 'form-danger' },
-            h('button', { type: 'button', class: 'btn btn-quiet', onclick: archive }, icon('archive', { size: 18 }), 'Arşivle'),
-            h('button', { type: 'button', class: 'btn btn-quiet text-danger', onclick: remove }, icon('trash', { size: 18 }), 'Sil'),
+            h('button', { type: 'button', class: 'btn btn-quiet', onclick: archive }, icon('archive', { size: 18 }), 'Archive'),
+            h('button', { type: 'button', class: 'btn btn-quiet text-danger', onclick: remove }, icon('trash', { size: 18 }), 'Delete'),
           ),
       );
     },

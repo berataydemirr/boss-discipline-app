@@ -1,6 +1,6 @@
 /**
- * Odak ekranı: halka zamanlayıcı, mod seçimi, alışkanlığa bağlama, bugünkü oturumlar.
- * Saniyelik güncelleme yalnızca süre metnini ve halkayı değiştirir; sayfa yeniden çizilmez.
+ * Focus screen: ring timer, mode picker, habit link, today's sessions.
+ * The per-second update only touches the time text and the ring; the page is not re-rendered.
  */
 import { h } from '../ui/dom.js';
 import { icon } from '../ui/icons.js';
@@ -40,13 +40,13 @@ export function render({ onCleanup }) {
   );
 
   const mainBtn = h('button', { class: 'focus-main', onclick: () => toggleMain() });
-  const resetBtn = h('button', { class: 'btn-icon focus-side', 'aria-label': 'Sıfırla', onclick: () => focus.reset() }, icon('restore', { size: 20 }));
-  const skipBtn = h('button', { class: 'btn-icon focus-side', 'aria-label': 'Sonrakine geç', onclick: () => focus.skip() }, icon('skip', { size: 20 }));
+  const resetBtn = h('button', { class: 'btn-icon focus-side', 'aria-label': 'Reset', onclick: () => focus.reset() }, icon('restore', { size: 20 }));
+  const skipBtn = h('button', { class: 'btn-icon focus-side', 'aria-label': 'Skip to next', onclick: () => focus.skip() }, icon('skip', { size: 20 }));
   const modeSeg = segmented(
     Object.entries(focus.MODES).map(([k, m]) => [k, m.label]),
     snap.mode,
     (v) => {
-      if (snap.status === 'running' && v !== snap.mode) return; // çalışırken mod değişmez
+      if (snap.status === 'running' && v !== snap.mode) return; // the mode is locked while running
       focus.setMode(v);
     },
   );
@@ -65,15 +65,10 @@ export function render({ onCleanup }) {
     arc.setAttribute('stroke-dashoffset', (CIRC * (1 - Math.min(1, Math.max(0, s.progress)))).toFixed(1));
     document.title = s.status === 'running' ? `${fmt(s.remainingMs)} · ${focus.MODES[s.mode].label}` : 'BOSS';
 
-    sub.textContent =
-      s.status === 'running'
-        ? `${clockTime(s.endAt)}’de biter`
-        : s.status === 'paused'
-          ? 'Duraklatıldı'
-          : `${focus.durationMin(s.mode)} dakika`;
+    sub.textContent = s.status === 'running' ? `Ends at ${clockTime(s.endAt)}` : s.status === 'paused' ? 'Paused' : `${focus.durationMin(s.mode)} minutes`;
 
     mainBtn.replaceChildren(icon(s.status === 'running' ? 'pause' : 'play', { size: 28 }));
-    mainBtn.setAttribute('aria-label', s.status === 'running' ? 'Duraklat' : s.status === 'paused' ? 'Devam et' : 'Başlat');
+    mainBtn.setAttribute('aria-label', s.status === 'running' ? 'Pause' : s.status === 'paused' ? 'Resume' : 'Start');
     resetBtn.disabled = s.status === 'idle';
     modeSeg.querySelectorAll('button').forEach((b) => {
       b.setAttribute('aria-pressed', String(b.dataset.v === s.mode));
@@ -87,27 +82,27 @@ export function render({ onCleanup }) {
     dots.replaceChildren(...Array.from({ length: every }, (_, i) => h('i', { class: i < filled ? 'on' : '' })));
   }
 
-  /* —— alışkanlığa bağla —— */
+  /* —— link to a habit —— */
   const builds = store.habits().filter((x) => x.kind === 'build');
   const habitSelect = h(
     'select',
     {
       class: 'input focus-select',
-      'aria-label': 'Bağlı alışkanlık',
+      'aria-label': 'Linked habit',
       onchange: (e) => focus.setHabit(e.target.value),
     },
-    h('option', { value: '' }, 'Alışkanlığa bağlama'),
+    h('option', { value: '' }, 'Not linked to a habit'),
     builds.map((x) => h('option', { value: x.id, selected: snap.habitId === x.id }, x.name)),
   );
 
-  /* —— bugünkü oturumlar —— */
+  /* —— today's sessions —— */
   const sessions = store.focusSessions(today).slice().reverse();
   const totalToday = store.focusMinutesOn(today);
 
   const wrap = h(
     'div',
     { class: 'page focus' },
-    h('header', { class: 'page-head' }, h('p', { class: 'eyebrow' }, 'Odak'), h('h1', { class: 'display' }, 'Derin çalışma')),
+    h('header', { class: 'page-head' }, h('p', { class: 'eyebrow' }, 'Focus'), h('h1', { class: 'display' }, 'Deep work')),
     modeSeg,
     h('div', { class: 'focus-dial' }, ring, h('div', { class: 'focus-readout' }, time, sub)),
     dots,
@@ -116,19 +111,14 @@ export function render({ onCleanup }) {
       h(
         'label',
         { class: 'field focus-link' },
-        h('span', { class: 'field-label' }, 'Bu oturum ne için?'),
+        h('span', { class: 'field-label' }, 'What is this session for?'),
         habitSelect,
-        store.settings.focusAutoCheck && h('span', { class: 'field-hint' }, 'Odak bitince seçili alışkanlık bugün için işaretlenir.'),
+        store.settings.focusAutoCheck && h('span', { class: 'field-hint' }, 'When the session ends, the selected habit is checked off for today.'),
       ),
     h(
       'section',
       { class: 'section' },
-      h(
-        'div',
-        { class: 'section-head' },
-        h('h2', { class: 'section-title' }, 'Bugün'),
-        h('span', { class: 'section-meta num' }, `${totalToday} dk`),
-      ),
+      h('div', { class: 'section-head' }, h('h2', { class: 'section-title' }, 'Today'), h('span', { class: 'section-meta num' }, `${totalToday} min`)),
       sessions.length
         ? h(
             'ul',
@@ -138,17 +128,17 @@ export function render({ onCleanup }) {
                 'li',
                 { class: 'session' },
                 h('span', { class: 'session-time num' }, `${clockTime(f.start)}–${clockTime(f.end)}`),
-                h('span', { class: 'session-name' }, f.habitId ? (store.habit(f.habitId)?.name ?? 'Silinmiş alışkanlık') : 'Serbest odak'),
-                h('span', { class: 'session-min num' }, `${f.minutes} dk`),
+                h('span', { class: 'session-name' }, f.habitId ? (store.habit(f.habitId)?.name ?? 'Deleted habit') : 'Free focus'),
+                h('span', { class: 'session-min num' }, `${f.minutes} min`),
                 h(
                   'button',
-                  { class: 'btn-icon btn-icon-sm', 'aria-label': 'Oturumu sil', onclick: () => store.deleteFocusSession(f.id).catch(showError) },
+                  { class: 'btn-icon btn-icon-sm', 'aria-label': 'Delete session', onclick: () => store.deleteFocusSession(f.id).catch(showError) },
                   icon('close', { size: 16 }),
                 ),
               ),
             ),
           )
-        : h('p', { class: 'muted small' }, 'Henüz oturum yok. Telefonu ters çevir, bir işe odaklan.'),
+        : h('p', { class: 'muted small' }, 'No sessions yet. Put your phone face down and focus on one thing.'),
     ),
   );
 

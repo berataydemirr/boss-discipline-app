@@ -1,9 +1,9 @@
 /**
- * Günlük ve dönemsel istatistikler. SAF modül.
+ * Daily and period statistics. PURE module.
  *
- * "Aktif" alışkanlık: o gün başlamış ve o gün itibarıyla arşivlenmemiş.
- * Oranlarda bugün özel davranır: henüz yapılmamış alışkanlıklar paydaya girmez
- * (gün bitmeden oranı düşürmek adil olmaz) — streaks.completionRate ile aynı kural.
+ * An "active" habit has started on that day and was not archived as of that day.
+ * Today is special in rates: unchecked habits are left out of the denominator
+ * (lowering the rate before the day is over would be unfair) — same rule as streaks.completionRate.
  */
 import { isScheduled } from './streaks.js';
 import { addDays, eachDay, startOfWeek, weekday } from '../core/dates.js';
@@ -13,7 +13,7 @@ export function isActiveOn(habit, key) {
 }
 
 /**
- * @param {object[]} habits tüm alışkanlıklar
+ * @param {object[]} habits all habits
  * @param {(habitId:string, key:string)=>boolean} isDone
  */
 export function dayCompletion(habits, isDone, key) {
@@ -27,21 +27,21 @@ export function dayCompletion(habits, isDone, key) {
   return { done, total, ratio: total ? done / total : null };
 }
 
-/** Bugün için adil sayım: yapılmamışlar paydaya eklenmez. */
+/** Fair count for today: unchecked habits do not enter the denominator. */
 function fairDay(habits, isDone, key, today) {
   const d = dayCompletion(habits, isDone, key);
   if (key === today) return { done: d.done, total: d.done };
   return d;
 }
 
-/** Her gün için { key, done, total, ratio } — ısı haritası. */
+/** { key, done, total, ratio } for every day — heatmap data. */
 export function dailySeries(habits, isDone, from, to) {
   const out = [];
   for (const key of eachDay(from, to)) out.push({ key, ...dayCompletion(habits, isDone, key) });
   return out;
 }
 
-/** Son `weeks` haftanın (bu hafta dahil) tamamlanma oranı. */
+/** Completion rate for the last `weeks` weeks (including this one). */
 export function weeklyRates(habits, isDone, today, weeks = 12) {
   const thisWeek = startOfWeek(today);
   const out = [];
@@ -60,7 +60,7 @@ export function weeklyRates(habits, isDone, today, weeks = 12) {
   return out;
 }
 
-/** Haftanın günlerine göre başarı oranı (Pzt=0 … Paz=6). */
+/** Success rate per weekday (Mon=0 … Sun=6). */
 export function weekdayPattern(habits, isDone, from, today) {
   const acc = Array.from({ length: 7 }, () => ({ done: 0, total: 0 }));
   for (const key of eachDay(from, today)) {
@@ -72,7 +72,7 @@ export function weekdayPattern(habits, isDone, from, today) {
   return acc.map((a, i) => ({ weekday: i, ...a, rate: a.total ? a.done / a.total : null }));
 }
 
-/** Tüm planlı alışkanlıkların yapıldığı günler: sayı ve en uzun ardışık seri. */
+/** Days where every scheduled habit was done: count and longest consecutive run. */
 export function perfectDays(habits, isDone, from, today) {
   let count = 0;
   let run = 0;
@@ -93,8 +93,8 @@ export function perfectDays(habits, isDone, from, today) {
 const avg = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 
 /**
- * Alışkanlık yapılan ve yapılmayan (planlı) günlerde ortalama ruh hali farkı.
- * Yalnızca her iki tarafta da en az `minSamples` değerlendirme varsa raporlanır.
+ * Average mood difference between scheduled days the habit was done vs. not done.
+ * Only reported when both sides have at least `minSamples` reviews.
  * @param {{date:string, review?:{mood?:number}}[]} days
  */
 export function moodCorrelation(habits, isDone, days, { minSamples = 4, metric = 'mood' } = {}) {
@@ -116,7 +116,7 @@ export function moodCorrelation(habits, isDone, days, { minSamples = 4, metric =
   return out.sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta));
 }
 
-/** Son `n` günün değerlendirme ortalamaları. */
+/** Review averages within a date range. */
 export function reviewAverages(days, from, to) {
   const inRange = days.filter((d) => d.review && d.date >= from && d.date <= to);
   const pick = (k) => avg(inRange.map((d) => d.review[k]).filter((v) => v != null));

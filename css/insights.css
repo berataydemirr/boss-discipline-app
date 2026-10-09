@@ -1,6 +1,6 @@
-/* V2 ekranları: seviye, öncelikler, bırakılacaklar, akşam değerlendirmesi, analiz, rozetler. */
+/* Level, priorities, quit habits, evening review, stats and badges. */
 
-/* ───────────────────────── seviye çipi ───────────────────────── */
+/* ───────────────────────── level chip ───────────────────────── */
 
 .level-chip {
   position: relative;
@@ -23,7 +23,7 @@
   mask: radial-gradient(circle, transparent 15.5px, #000 16px);
 }
 
-/* ───────────────────────── öncelikler ───────────────────────── */
+/* ───────────────────────── priorities ───────────────────────── */
 
 .prio-list {
   display: grid;
@@ -108,7 +108,7 @@
   stroke-width: 2.4;
 }
 
-/* ───────────────────────── bırakılacaklar ───────────────────────── */
+/* ───────────────────────── quit habits ───────────────────────── */
 
 .quit-list {
   display: grid;
@@ -188,7 +188,7 @@
   color: var(--text-3);
 }
 
-/* ───────────────────────── akşam ───────────────────────── */
+/* ───────────────────────── evening review ───────────────────────── */
 
 .review-cta,
 .review-card {
@@ -286,7 +286,7 @@
   color: var(--text-3);
 }
 
-/* —— ölçek seçici —— */
+/* —— scale picker —— */
 
 .scale {
   display: grid;
@@ -333,7 +333,7 @@
   gap: 16px;
 }
 
-/* ───────────────────────── alışkanlık ayrıntısı ───────────────────────── */
+/* ───────────────────────── habit detail ───────────────────────── */
 
 .detail {
   display: grid;
@@ -357,7 +357,7 @@
   margin-top: -6px;
 }
 
-/* ───────────────────────── analiz ───────────────────────── */
+/* ───────────────────────── stats ───────────────────────── */
 
 .level-card {
   display: grid;
@@ -534,7 +534,7 @@
   color: var(--text-3);
 }
 
-/* ───────────────────────── günlük ───────────────────────── */
+/* ───────────────────────── journal ───────────────────────── */
 
 .ji-tags {
   display: flex;

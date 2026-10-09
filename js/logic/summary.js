@@ -1,6 +1,6 @@
 /**
- * Tüm istatistikleri tek seferde hesaplayan özet. SAF modül.
- * Ekranlar bunu store sürümüne göre önbelleğe alır (bkz. store.summary()).
+ * Computes every statistic in one pass. PURE module.
+ * Screens cache it per store version (see store.summary()).
  *
  * @param {{habits:object[], isDone:Function, datesFor:Function, days:object[], focusMinutes?:number, today:string}} data
  */
@@ -20,7 +20,7 @@ export function buildSummary({ habits, isDone, datesFor, days, focusMinutes = 0,
 
   for (const h of build) {
     const set = datesFor(h.id);
-    // Arşivlenmiş alışkanlığın geçmişi puanda kalır ama seriler arşiv gününde durur.
+    // An archived habit keeps its history in the points, but its streaks stop on the archive day.
     const end = h.archivedAt ? addDays(h.archivedAt, -1) : today;
     const doneCount = [...set].filter((d) => d >= h.createdAt && d <= end).length;
     checks += doneCount;
@@ -39,7 +39,7 @@ export function buildSummary({ habits, isDone, datesFor, days, focusMinutes = 0,
   for (const h of quit) {
     const end = h.archivedAt ?? today;
     const s = quitStats(h, [...datesFor(h.id)], end);
-    // temiz gün = başlangıçtan bugüne geçen tam günler − kayma günleri
+    // clean days = full days since the start − slip days
     cleanDays += Math.max(0, diffDays(h.createdAt, end) - s.slips);
     if (s.best > quitBest) quitBest = s.best;
     perHabit.set(h.id, { kind: 'quit', ...s });

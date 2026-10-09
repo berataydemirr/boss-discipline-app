@@ -1,19 +1,19 @@
 /*
- * Service worker: uygulamayı çevrimdışı çalıştırır.
+ * Service worker: makes the app work offline.
  *
- * Strateji:
- * - Uygulama dosyaları (PRECACHE) kurulumda önbelleğe alınır ve önce önbellekten sunulur.
- * - Google Fonts: önbellekten sun, arka planda tazele (stale-while-revalidate).
- * - Sürüm js/version.js'ten gelir; sürüm değişince yeni önbellek kurulur, eskisi silinir.
+ * Strategy:
+ * - App files (PRECACHE) are cached at install and served cache-first.
+ * - Google Fonts: served from cache, refreshed in the background (stale-while-revalidate).
+ * - The version comes from js/version.js; a new version installs a new cache and drops the old one.
  *
- * ÖNEMLİ: Yeni bir dosya eklediğinde PRECACHE listesine de ekle.
- * `npm test` (tests/precache.test.mjs) eksik/fazla dosyayı yakalar.
+ * IMPORTANT: add every new file to PRECACHE.
+ * `npm test` (tests/precache.test.mjs) catches missing or extra entries.
  */
 importScripts('./js/version.js', './js/reminder-core.js');
 
-const VERSION = self.DISIPLIN_VERSION;
-const CACHE = `disiplin-${VERSION}`;
-const RUNTIME = 'disiplin-runtime';
+const VERSION = self.BOSS_VERSION;
+const CACHE = `boss-${VERSION}`;
+const RUNTIME = 'boss-runtime';
 
 const PRECACHE = [
   './',
@@ -71,13 +71,13 @@ const PRECACHE = [
 const log = (...args) => console.info('%c[sw]', 'color:#7fa6c9', ...args);
 
 self.addEventListener('install', (event) => {
-  log('kuruluyor', VERSION);
+  log('installing', VERSION);
   event.waitUntil(
     caches
       .open(CACHE)
       .then((c) => c.addAll(PRECACHE.map((u) => new Request(u, { cache: 'reload' }))))
       .catch((e) => {
-        console.error('[sw] önbelleğe alma başarısız — PRECACHE listesini kontrol et', e);
+        console.error('[sw] precaching failed — check the PRECACHE list', e);
         throw e;
       }),
   );
@@ -87,9 +87,9 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
       const keys = await caches.keys();
-      await Promise.all(keys.filter((k) => k.startsWith('disiplin-') && k !== CACHE && k !== RUNTIME).map((k) => caches.delete(k)));
+      await Promise.all(keys.filter((k) => k.startsWith('boss-') && k !== CACHE && k !== RUNTIME).map((k) => caches.delete(k)));
       await self.clients.claim();
-      log('etkin', VERSION);
+      log('active', VERSION);
     })(),
   );
 });
@@ -115,7 +115,7 @@ self.addEventListener('fetch', (event) => {
 async function fromCache(req) {
   const cache = await caches.open(CACHE);
   if (req.mode === 'navigate') {
-    // ?debug=1 gibi parametreler aynı kabuğu kullanır.
+    // Query strings like ?debug=1 use the same app shell.
     const shell = await cache.match('./index.html');
     if (shell) return shell;
   }
@@ -144,7 +144,7 @@ async function staleWhileRevalidate(req) {
   return hit || (await network) || new Response('', { status: 504 });
 }
 
-/* ───────────────────────── bildirimler ───────────────────────── */
+/* ───────────────────────── notifications ───────────────────────── */
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
@@ -163,19 +163,19 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-/* ───────────────────── arka plan hatırlatma (Android/Chrome) ───────────────────── */
+/* ───────────────────── background reminders (Android/Chrome) ───────────────────── */
 
 self.addEventListener('periodicsync', (event) => {
-  if (event.tag === 'disiplin-reminders') event.waitUntil(backgroundReminders());
+  if (event.tag === 'boss-reminders') event.waitUntil(backgroundReminders());
 });
 
 function idbOpen() {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open('disiplin'); // sürüm verilmez: sayfanın oluşturduğu şemayı kullan
+    const req = indexedDB.open('boss'); // no version: use the schema the page created
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
     req.onupgradeneeded = () => {
-      // Veritabanı hiç oluşturulmamış: hiçbir şey yapma.
+      // The database was never created: do nothing.
       req.transaction.abort();
     };
   });
@@ -203,12 +203,10 @@ async function backgroundReminders() {
   try {
     db = await idbOpen();
     if (!db.objectStoreNames.contains('meta')) return;
-    const R = self.DisiplinReminders;
+    const R = self.BossReminders;
     const now = new Date();
     const today = R.dateKey(now);
-    const [habits, checks, days, settingsRows, metaRows] = await Promise.all(
-      ['habits', 'checks', 'days', 'settings', 'meta'].map((s) => idbAll(db, s)),
-    );
+    const [habits, checks, days, settingsRows, metaRows] = await Promise.all(['habits', 'checks', 'days', 'settings', 'meta'].map((s) => idbAll(db, s)));
     const settings = Object.fromEntries(settingsRows.map((r) => [r.key, r.value]));
     if (settings.morningTime === undefined) settings.morningTime = '08:30';
     if (settings.eveningTime === undefined) settings.eveningTime = '21:30';
@@ -216,12 +214,12 @@ async function backgroundReminders() {
     const fired = R.firedSet(logRec, today);
     const doneToday = new Set(checks.filter((c) => c.date === today).map((c) => c.habitId));
     const day = days.find((d) => d.date === today) || null;
-    // Arka planda kontrol seyrek (≈ saatte bir) olduğundan pencere geniş tutulur.
+    // Background checks are sparse (~hourly), so the window is wider.
     const due = R.dueReminders({ habits, doneToday, day, settings, fired, now, windowMin: 150 });
     for (const n of due) {
       await self.registration.showNotification(n.title, {
         body: n.body,
-        tag: `disiplin-${n.id}`,
+        tag: `boss-${n.id}`,
         icon: './icons/icon-192.png',
         badge: './icons/icon-192.png',
         data: { url: n.url },
@@ -229,9 +227,9 @@ async function backgroundReminders() {
       fired.add(n.id);
     }
     if (due.length) await idbPut(db, 'meta', { key: 'reminderLog', value: { date: today, ids: [...fired] } });
-    log('arka plan hatırlatma', due.length);
+    log('background reminders', due.length);
   } catch (e) {
-    console.error('[sw] arka plan hatırlatma başarısız', e);
+    console.error('[sw] background reminders failed', e);
   } finally {
     db?.close();
   }
